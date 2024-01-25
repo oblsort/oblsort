@@ -457,12 +457,10 @@ class KWayDistriSorter {
         }
 
       } else {
-        printf("run basic\n");
         KWayDistriSortBasic(batchBegin, batchEnd, ioLayer,
                             distriParams.ways[ioLayer].size() - 1,
                             stride / partitionSize,
                             strideCount * numInternalWay);
-        printf("finish basic\n");
         for (uint64_t bucketIdx = 0; bucketIdx < numInternalWay; ++bucketIdx) {
           auto extBeginIt = strideBegin + bucketIdx * stride * Z;
           auto intBeginIt = batchBegin + bucketIdx * Z;
