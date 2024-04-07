@@ -120,7 +120,7 @@ struct Block {
   inline void setDummy() { setDummyFlag(true); }
   inline void setDummyFlag(bool flag) { this->dummyFlag = flag; }
   inline void setDummyFlagCond(bool cond, bool flag) {
-    CMOV(cond, this->dummyFlag, flag);
+    obliMove(cond, this->dummyFlag, flag);
   }
 };  // struct Block
 
@@ -159,7 +159,7 @@ struct TaggedT {
   inline bool isMarked(uint64_t bitMask) const { return !(tag & bitMask); }
 
   inline void condChangeMark(bool cond, uint64_t bitMask) {
-    CMOV(cond, tag, tag ^ bitMask);
+    obliMove(cond, tag, tag ^ bitMask);
   }
 
   inline uint8_t getMarkAndUpdate(uint64_t k) {
@@ -189,30 +189,3 @@ struct SortElement {
   }
 #endif
 };
-
-INLINE void CMOV(const uint64_t& condition, SortElement& A,
-                 const SortElement& B) {
-  CMOV(condition, A.key, B.key);
-  for (uint64_t i = 0; i < sizeof(SortElement::payload); i += 8) {
-    CMOV(condition, *(uint64_t*)&(A.payload[i]), *(uint64_t*)&(B.payload[i]));
-  }
-}
-
-template <typename T>
-INLINE void CMOV(const uint64_t& condition, EM::Algorithm::Block<T>& A,
-                 const EM::Algorithm::Block<T>& B) {
-  CMOV(condition, A.data, B.data);
-  CMOV(condition, A.tag, B.tag);
-  CMOV(condition, A.dummyFlag, B.dummyFlag);
-  CMOV(condition, A.lessFlag, B.lessFlag);
-}
-
-template <typename T>
-INLINE void CMOV(const uint64_t& condition, EM::Algorithm::TaggedT<T>& A,
-                 const EM::Algorithm::TaggedT<T>& B) {
-  CMOV(condition, A.tag, B.tag);
-  CMOV(condition, A.v, B.v);
-}
-
-OVERLOAD_TSET_CXCHG(EM::Algorithm::Block<T>, typename T)
-OVERLOAD_TSET_CXCHG(EM::Algorithm::TaggedT<T>, typename T);

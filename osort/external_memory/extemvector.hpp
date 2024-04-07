@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <vector>
@@ -13,7 +12,7 @@ template <typename T,
           uint64_t cache_size = SERVER__CACHE_SIZE>
 struct Vector {
   static constexpr uint64_t item_per_page = page_size / sizeof(T);
-
+  constexpr static bool useStdCopy = true;
   struct Page {
     T pages[item_per_page];
     using Encrypted_t = std::conditional_t<
@@ -44,6 +43,8 @@ struct Vector {
     using page_offset_type = uint64_t;
     using reference = T&;
     using const_reference = const T&;
+    using vector_type = Vector;
+    constexpr static bool random_access = true;
 
     // Iterator constructors here...
     explicit Iterator(pointer ptr, Vector& vec) : m_ptr(ptr), vec_ptr(&vec) {}
@@ -176,15 +177,27 @@ struct Vector {
     std::copy(begin, end, outIt);
   }
 
+  Vector(Vector&& other) : N(other.N), server(std::move(other.server)) {}
+
   T& AtForLateInit(uint64_t index) {
     return Iterator(index, *this).derefWriteOnly();
   }
 
-  T& At(uint64_t index) { return *Iterator(index, *this); }
-  const T& At(uint64_t index) const { return *Iterator(index, *this); }
+  T& At(uint64_t index) {
+    const size_t realIdx = index;
+    const size_t pageIdx = realIdx / item_per_page;
+    const size_t pageOffset = realIdx % item_per_page;
+    return server.Access(pageIdx).pages[pageOffset];
+  }
+
+  const T& Get(uint64_t index) {
+    const size_t realIdx = index;
+    const size_t pageIdx = realIdx / item_per_page;
+    const size_t pageOffset = realIdx % item_per_page;
+    return server.AccessReadOnly(pageIdx).pages[pageOffset];
+  }
 
   T& operator[](uint64_t index) { return At(index); }
-  const T& operator[](uint64_t index) const { return At(index); }
 
   uint64_t size() const { return N; }
 

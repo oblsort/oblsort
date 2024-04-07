@@ -1,4 +1,3 @@
-
 #pragma once
 
 #ifdef DISK_IO
@@ -22,7 +21,7 @@ struct Vector {
   static constexpr bool auth = AUTH;
   static constexpr uint64_t item_per_page =
       GetNextPowerOfTwo(page_size / sizeof(T) / 2 + 1);
-
+  constexpr static bool useStdCopy = false;
   uint64_t referenceCount;
 
   struct Page {
@@ -60,6 +59,8 @@ struct Vector {
     using page_offset_type = uint64_t;
     using reference = T&;
     using const_reference = const T&;
+    using vector_type = Vector;
+    constexpr static bool random_access = false;
 
     // Iterator constructors here...
     explicit Iterator(pointer ptr, Vector& vec) : m_ptr(ptr), vec_ptr(&vec) {}
@@ -151,6 +152,8 @@ struct Vector {
     Iterator end;
     T* curr = (T*)UINT64_MAX;
     uint32_t counter;
+    using value_type = T;
+    using iterator_type = Iterator;
     Reader() {}
 
     Reader(Iterator _begin, Iterator _end, uint32_t _counter = 0)
@@ -196,10 +199,14 @@ struct Vector {
       return val;
     }
     bool eof() { return end <= it; }
+
+    size_t size() { return end - it; }
   };
 
 #ifdef DISK_IO
   struct PrefetchReader {
+    using value_type = T;
+    using iterator_type = Iterator;
     static const uint64_t cacheCapacity = Server::bufferCapacity;
     Page cache[cacheCapacity];
     Iterator it;
@@ -265,6 +272,7 @@ struct Vector {
       return val;
     }
     bool eof() { return end <= it; }
+    size_t size() { return end - it; }
   };
 #else
   struct PrefetchReader : Reader {
@@ -283,6 +291,8 @@ struct Vector {
   // the advantage is that the requests for multipler readers can be
   // interleaved and the most on-demand pages can be handled first
   struct LazyPrefetchReader {
+    using value_type = T;
+    using iterator_type = Iterator;
     std::vector<Page> cache;  // ring cache
 
     std::vector<uint64_t> jobCounters;
@@ -369,6 +379,7 @@ struct Vector {
       return val;
     }
     bool eof() { return end <= it; }
+    size_t size() { return end - it; }
   };
 #else
   struct LazyPrefetchReader : Reader {
@@ -380,6 +391,8 @@ struct Vector {
 
   // writer always overwrites data between begin and end
   struct Writer {
+    using value_type = T;
+    using iterator_type = Iterator;
     Page cache;
     Iterator it;
     Iterator end;
@@ -452,12 +465,13 @@ struct Vector {
       }
       vec.server.flushWrite();
     }
+    size_t size() { return end - it; }
   };
 
   // default:
   explicit Vector(uint64_t N_ = 0, typename Server::BackendType& _backend =
                                        *Backend::g_DefaultBackend)
-      : N(N_), server(_backend, N_ / item_per_page + 1) {}
+      : N(N_), server(_backend, divRoundUp(N_, item_per_page)) {}
 
   Page makeDefaultPage(const T& defaultVal) {
     Page defaultPage;
@@ -467,7 +481,8 @@ struct Vector {
   Vector(uint64_t N_, const T& defaultVal,
          typename Server::BackendType& _backend = *Backend::g_DefaultBackend)
       : N(N_),
-        server(_backend, N_ / item_per_page + 1, makeDefaultPage(defaultVal)) {}
+        server(_backend, divRoundUp(N_, item_per_page),
+               makeDefaultPage(defaultVal)) {}
 
   Vector(Vector&& vec)
       : server(vec.server), referenceCount(vec.referenceCount), N(vec.N) {
@@ -480,7 +495,7 @@ struct Vector {
   Vector(InputIterator inputBegin, InputIterator inputEnd,
          typename Server::BackendType& _backend = *Backend::g_DefaultBackend)
       : N(inputEnd - inputBegin),
-        server(_backend, (inputEnd - inputBegin) / item_per_page + 1) {
+        server(_backend, divRoundUp(inputEnd - inputBegin, item_per_page)) {
     CopyOut(inputBegin, inputEnd, begin());
   }
 

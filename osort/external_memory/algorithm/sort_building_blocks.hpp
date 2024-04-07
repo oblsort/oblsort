@@ -4,6 +4,7 @@
 #include "bitonic.hpp"
 #include "edge_rec.hpp"
 #include "external_memory/noncachedvector.hpp"
+#include "external_memory/stdvector.hpp"
 #include "or_compact_shuffle.hpp"
 #include "sort_def.hpp"
 #include "static_sort.hpp"
@@ -352,7 +353,7 @@ void MergeSplitInPlace(Iterator begin, Iterator end, Indicator indicator,
   }
   const bool dir = markCount > Z;
   uint64_t diff = Z - markCount;
-  CMOV(dir, diff, -diff);
+  obliMove(dir, diff, -diff);
 
   for (auto it = begin; it != end; ++it) {
     bool isMarked = it->isMarked(indicator);
@@ -433,7 +434,7 @@ void MergeSplitTwoWay(Iterator beginLeft, Iterator beginRight, size_t Z,
   }
   const bool dir = markCount > Z;
   uint64_t diff = Z - markCount;
-  CMOV(dir, diff, -diff);
+  obliMove(dir, diff, -diff);
 
   end = endLeft;
   for (auto it = beginLeft;; ++it) {
@@ -539,11 +540,11 @@ void MergeSplitKWay(const Iterator* begins, const size_t k, const size_t Z,
   // assume that there's at least one dummy for each mark
   for (marksIt = marks; marksIt != marks + Z * k; ++marksIt) {
     uint8_t isDummy = (*marksIt == (uint8_t)-1);
-    CMOV(isDummy, *marksIt, (uint8_t)currMark);
+    obliMove(isDummy, *marksIt, (uint8_t)currMark);
     currRemain -= isDummy;
     currMark += !currRemain;
     uint32_t remainCount = mm256_extract_epi32_var_indx(remainCounts, currMark);
-    CMOV(!currRemain, currRemain, remainCount);
+    obliMove(!currRemain, currRemain, remainCount);
     Assert(currRemain > 0);
   }
   Interleave(temp, temp + k * Z, marks, marks + k * Z, k);
@@ -603,6 +604,11 @@ Iterator partitionDummy(Iterator begin, Iterator end) {
   }
 }
 
+template <typename IOIterator, typename Iterator>
+void ExtMergeSort(IOIterator begin, IOIterator end,
+                  const std::vector<std::pair<Iterator, Iterator>>& mergeRanges,
+                  uint32_t outAuth = 0, uint64_t maxWay = 2048);
+
 /// @brief External merge sort implemented using heap, only supports up to two
 /// layers
 /// @tparam Iterator should support writer
@@ -610,30 +616,27 @@ Iterator partitionDummy(Iterator begin, Iterator end) {
 /// @param end end iterator of the output vector
 /// @param mergeRanges ranges to merge
 /// @param outAuth authentication counter of the output vector
-template <typename IOIterator, typename Iterator>
-void ExtMergeSort(IOIterator begin, IOIterator end,
+template <typename Writer, typename Iterator>
+void ExtMergeSort(Writer& outputWriter,
                   const std::vector<std::pair<Iterator, Iterator>>& mergeRanges,
-                  uint32_t outAuth = 0, uint64_t maxWay = 2048) {
+                  uint64_t maxWay = 2048) {
   using T = typename std::iterator_traits<Iterator>::value_type;
-  using Vector = typename
-      std::remove_reference<decltype(*(Iterator::getNullVector()))>::type;
+  using Vector = typename Iterator::vector_type;
   using Reader = typename Vector::LazyPrefetchReader;
-  using IOVector = typename
-      std::remove_reference<decltype(*(IOIterator::getNullVector()))>::type;
-  typename IOVector::Writer outputWriter(begin, end, outAuth);
+
   // for merge sort
   const auto* mergeRangesPtr = &mergeRanges;
   std::vector<std::pair<Iterator, Iterator>> newMergeRanges;
 
   if (mergeRanges.size() > maxWay) {
-    Vector temp(end - begin);
+    Vector temp(outputWriter.size());
     size_t rangeCount = mergeRanges.size();
     size_t passNeeded = (size_t)(log(rangeCount) / log(maxWay) + 1);
     size_t way = pow(rangeCount, 1.0 / passNeeded);
     Assert(way <= maxWay);
     size_t subRangeCount = divRoundUp(rangeCount, way);
     way = divRoundUp(rangeCount, subRangeCount);
-    size_t subSize = divRoundUp(end - begin, way);
+    size_t subSize = divRoundUp(outputWriter.size(), way);
     newMergeRanges.reserve(way);
     auto subBegin = temp.begin();
     for (size_t i = 0; i < way; ++i) {
@@ -690,19 +693,35 @@ void ExtMergeSort(IOIterator begin, IOIterator end,
   outputWriter.flush();
 }
 
+template <typename IOIterator, typename Iterator>
+void ExtMergeSort(IOIterator begin, IOIterator end,
+                  const std::vector<std::pair<Iterator, Iterator>>& mergeRanges,
+                  uint32_t outAuth, uint64_t maxWay) {
+  using IOVector = typename IOIterator::vector_type;
+  typename IOVector::Writer outputWriter(begin, end, outAuth);
+  ExtMergeSort(outputWriter, mergeRanges, maxWay);
+}
+
 template <const bool incAuth = true, class IOIterator>
 void ExtMergeSort(IOIterator begin, IOIterator end,
                   uint64_t heapSize = DEFAULT_HEAP_SIZE, uint32_t inAuth = 0) {
   using EM::NonCachedVector::Vector;
   using T = typename std::iterator_traits<IOIterator>::value_type;
 
-  using IOVector = typename
-      std::remove_reference<decltype(*(IOIterator::getNullVector()))>::type;
+  using IOVector = typename IOIterator::vector_type;
   using Reader = typename Vector<T>::LazyPrefetchReader;
   using Iterator = typename Vector<T>::Iterator;
   size_t size = end - begin;
   size_t batchSize = heapSize / sizeof(T);
   size_t batchCount = divRoundUp(size, batchSize);
+  if (batchCount == 1) {
+    std::vector<T> mem(size);
+    CopyIn(begin, end, mem.begin(), inAuth);
+    std::sort(mem.begin(), mem.end());
+    uint32_t outAuth = incAuth ? inAuth + 1 : inAuth;
+    CopyOut(mem.begin(), mem.end(), begin, outAuth);
+    return;
+  }
   std::vector<std::pair<Iterator, Iterator>> mergeRanges;
   std::vector<Reader> mergeReaders;
   Vector<T> batchSorted(size);
