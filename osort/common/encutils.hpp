@@ -66,6 +66,8 @@ class RandGen {
   uint8_t rand1();
 };
 
+void read_rand(uint8_t* output, size_t size);
+
 #ifdef ENCLAVE_MODE
 #include "common/encutils.cpp"
 #endif

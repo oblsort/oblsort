@@ -1,4 +1,5 @@
 #pragma once
+#include "common/cmp_intrinsics.hpp"
 #include "common/defs.hpp"
 #include "common/dummy.hpp"
 #include "common/encrypted.hpp"
@@ -127,8 +128,8 @@ struct Block {
 /// @brief Wrapper for flex-way butterfly o-sort
 /// @tparam T type of elements
 template <typename T>
-  requires(IS_POD<T>())
 struct TaggedT {
+  static_assert(std::is_trivially_copyable<T>());
 #if defined(__AVX512VL__) || defined(__AVX2__)
   static constexpr size_t paddingSize = sizeof(T) % 32 == 16 ? 8 : 0;
 #else
@@ -189,3 +190,46 @@ struct SortElement {
   }
 #endif
 };
+
+template <const size_t size>
+struct Bytes {
+ private:
+  uint8_t data[size];
+
+ public:
+  Bytes() { memset(data, 0, size); }
+
+  bool operator==(const Bytes<size>& other) const {
+    return obliCheckEqual<size>(data, other.data);
+  }
+
+  bool operator!=(const Bytes<size>& other) const { return !(*this == other); }
+
+  bool operator<(const Bytes<size>& other) const {
+    return obliCheckLess<size>(data, other.data);
+  }
+
+  void SetRand() { read_rand(data, size); }
+
+  const uint8_t* GetData() const { return data; }
+
+// out stream
+#ifndef ENCLAVE_MODE
+  friend std::ostream& operator<<(std::ostream& o, const Bytes<size>& x) {
+    for (size_t i = 0; i < size; ++i) {
+      o << std::hex << std::setw(2) << std::setfill('0') << (int)x.data[i];
+    }
+    return o;
+  }
+#endif
+};
+
+namespace std {
+template <const size_t size>
+struct hash<Bytes<size>> {
+  std::size_t operator()(const Bytes<size>& bytes) const {
+    return std::hash<std::string_view>()(
+        std::string_view((const char*)bytes.GetData(), size));
+  }
+};
+}  // namespace std

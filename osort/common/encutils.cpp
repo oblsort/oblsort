@@ -82,6 +82,25 @@ uint8_t RandGen::rand1() {
   return d(engine);
 }
 
+void read_rand(uint8_t *output, size_t size) {
+  FILE *fp = fopen("/dev/urandom", "rb");
+  if (fp == NULL) {
+    perror("Failed to open /dev/urandom");
+    return;  // Failure
+  }
+
+  size_t read = fread(output, 1, size, fp);
+  fclose(fp);
+
+  if (read != size) {
+    perror("Failed to read enough bytes");
+    // Handle the error, not enough data was read
+    return;  // Failure
+  }
+
+  return;  // Success
+}
+
 #else
 #include <x86intrin.h>
 
@@ -258,5 +277,7 @@ uint8_t RandGen::rand1() {
   idx += 1;
   return output & 1;
 }
+
+void read_rand(uint8_t *output, size_t size) { sgx_read_rand(output, size); }
 
 #endif
