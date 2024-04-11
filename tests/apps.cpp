@@ -35,9 +35,26 @@ void testHistogram(uint64_t size = 10000) {
   }
 }
 
-TEST(TestApps, Histogram) {
-  testHistogram<KWAYBUTTERFLYOSORT>(100000);
-  testHistogram<BITONICSORT>(100000);
+template <SortMethod method>
+void testHistogramPerf(uint64_t size) {
+  using Url = Bytes<256>;
+  using HistEntry_ = Apps::HistEntry<Url>;
+  EM::VirtualVector::VirtualReader<Url> inputReader(
+      size, [&](uint64_t i) { return Url{}; });
+
+  EM::VirtualVector::VirtualWriter<HistEntry_> outputWriter(
+      size, [&](uint64_t i, const HistEntry_& entry) {});
+  Apps::histogram<method>(inputReader, outputWriter);
+}
+
+TEST(TestApps, HistogramCorrectness) {
+  testHistogram<KWAYBUTTERFLYOSORT>(10000);
+  testHistogram<BITONICSORT>(10000);
+}
+
+TEST(TestApps, HistogramPerf) {
+  testHistogramPerf<KWAYBUTTERFLYOSORT>(10000000);
+  testHistogramPerf<BITONICSORT>(10000000);
 }
 
 template <SortMethod method>

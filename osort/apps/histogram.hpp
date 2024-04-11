@@ -36,15 +36,21 @@ void histogramHelper(uint64_t size, Reader& reader, Writer& writer) {
         obliMove(!isDup, dupCounter, 0UL);
         prev = ele;
       });
+  uint64_t heapSize = DEFAULT_HEAP_SIZE;
+  if constexpr (std::is_same<IntermediateVec, StdVector<HistEntry_>>::value) {
+    heapSize -= sizeof(HistEntry_) * size;
+  }
   if constexpr (method == KWAYBUTTERFLYOSORT) {
-    KWayButterflySort(reader, vWriter, DEFAULT_HEAP_SIZE);
+    KWayButterflySort(reader, vWriter, heapSize);
     histWriter.write(HistEntry_{prev, ++dupCounter});
+    histWriter.flush();
     // std::cout << "write " << prev << " " << dupCounter << std::endl;
     typename IntermediateVec::Reader histReader(hist.begin(), hist.end());
-    KWayButterflySort(histReader, writer, DEFAULT_HEAP_SIZE);
+    KWayButterflySort(histReader, writer, heapSize);
   } else if constexpr (method == BITONICSORT) {
     BitonicSortRW(reader, vWriter);
     histWriter.write(HistEntry_{prev, ++dupCounter});
+    histWriter.flush();
     // std::cout << "write " << prev << " " << dupCounter << std::endl;
     typename IntermediateVec::Reader histReader(hist.begin(), hist.end());
     BitonicSortRW(histReader, writer);
@@ -58,9 +64,10 @@ void histogram(Reader& reader, Writer& writer) {
   static_assert(method == KWAYBUTTERFLYOSORT || method == BITONICSORT,
                 "Invalid method for histogram");
 
-  if (DEFAULT_HEAP_SIZE < sizeof(HistEntry_) * size * 2) {  // external memory
+  if (DEFAULT_HEAP_SIZE < sizeof(HistEntry_) * size * 5) {  // external memory
     using IntermediateVec =
         EM::NonCachedVector::Vector<HistEntry_, (1UL << 16)>;
+    printf("Uses external memory\n");
     histogramHelper<method, IntermediateVec>(size, reader, writer);
   } else {
     using IntermediateVec = StdVector<HistEntry_>;

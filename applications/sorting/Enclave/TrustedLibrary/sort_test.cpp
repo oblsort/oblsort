@@ -1,5 +1,7 @@
 #include "../Enclave.h"
 #include "Enclave_t.h"
+#include "apps/histogram.hpp"
+#include "apps/oram_init.hpp"
 #include "external_memory/algorithm/ca_bucket_sort.hpp"
 #include "external_memory/algorithm/kway_butterfly_sort.hpp"
 #include "external_memory/algorithm/kway_distri_sort.hpp"
@@ -474,5 +476,43 @@ void ecall_bitonic_perf() {
     }
     ocall_measure_time(&end);
     printf("%f, ", 1e-9 * (end - start));
+  }
+}
+
+template <SortMethod method>
+void testHistogramPerf(uint64_t size) {
+  using Url = Bytes<256>;
+  using HistEntry_ = Apps::HistEntry<Url>;
+  EM::VirtualVector::VirtualReader<Url> inputReader(
+      size, [&](uint64_t i) { return Url{}; });
+
+  EM::VirtualVector::VirtualWriter<HistEntry_> outputWriter(
+      size, [&](uint64_t i, const HistEntry_& entry) {});
+  Apps::histogram<method>(inputReader, outputWriter);
+}
+
+void histogram_test(uint64_t size) {
+  uint64_t start, end;
+  if (EM::Backend::g_DefaultBackend) {
+    delete EM::Backend::g_DefaultBackend;
+  }
+  size_t BackendSize = 1024 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testHistogramPerf<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+
+  ocall_measure_time(&start);
+  testHistogramPerf<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
+void ecall_app_perf() {
+  for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
+    histogram_test(size);
   }
 }

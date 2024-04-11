@@ -13,12 +13,13 @@
 void ActualMain(void) {
   sgx_status_t ret = SGX_ERROR_UNEXPECTED;
 
-  ret = ecall_sort_perf(global_eid);
+  // ret = ecall_sort_perf(global_eid);
   // ret = ecall_test_sanity(global_eid);
   // ret = ecall_pageswap_perf(global_eid);
   // ret = ecall_pageswap_with_crypt_perf(global_eid);
   // ret = ecall_mergesplit_perf(global_eid);
   //   ret = ecall_mergesplit_compare(global_eid);
+  ret = ecall_app_perf(global_eid);
 
   if (ret != SGX_SUCCESS) abort();
 

@@ -77,6 +77,7 @@ void ORAMInitHelper(Reader& reader, Writer& writer, int level = 0) {
     } else if constexpr (method == BITONICSORT) {
       BitonicSortRW(vReader, intermediateVWriter);
     }
+    intermediateWriter.flush();
     typename IntermediateVec::Reader intermediateReader(intermediateVec.begin(),
                                                         intermediateVec.end());
     uint64_t prevPos = (uint64_t)-1;
@@ -106,6 +107,7 @@ void ORAMInitHelper(Reader& reader, Writer& writer, int level = 0) {
     } else if constexpr (method == BITONICSORT) {
       BitonicSortRW(vReader2, vWriter);
     }
+    upWriter.flush();
   }
   typename IntermediateVec::Reader upReader(upVec.begin(), upVec.end());
   ORAMInitHelper<IntermediateVec, method, Z>(upReader, writer, level + 1);

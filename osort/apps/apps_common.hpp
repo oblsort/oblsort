@@ -25,7 +25,9 @@ void BitonicSortRW(Reader& reader, Writer& writer) {
   uint64_t size = reader.size();
   using T = typename Reader::value_type;
   if (DEFAULT_HEAP_SIZE < sizeof(T) * size * 2) {
-    using SortVec = EM::ExtVector::Vector<T>;
+    static constexpr uint64_t page_size = 1UL << 16;
+    static constexpr uint64_t cache_size = DEFAULT_HEAP_SIZE / page_size;
+    using SortVec = EM::ExtVector::Vector<T, page_size, true, true, cache_size>;
     BitonicSortRWHelper<SortVec>(reader, writer);
   } else {
     using SortVec = StdVector<T>;
