@@ -2,6 +2,7 @@
 #include "Enclave_t.h"
 #include "apps/histogram.hpp"
 #include "apps/oram_init.hpp"
+#include "apps/load_balancer.hpp"
 #include "external_memory/algorithm/ca_bucket_sort.hpp"
 #include "external_memory/algorithm/kway_butterfly_sort.hpp"
 #include "external_memory/algorithm/kway_distri_sort.hpp"
@@ -491,6 +492,26 @@ void testHistogramPerf(uint64_t size) {
   Apps::histogram<method>(inputReader, outputWriter);
 }
 
+template <SortMethod method>
+void testLoadBalancer(uint64_t size) {
+  using K = Bytes<32>;
+  using V = Bytes<32>;
+  Apps::ParOMap<K, V, uint64_t> testOMap;
+  EM::VirtualVector::VirtualReader<std::pair<K, V>> inputReader(
+      size, [&](uint64_t i) {
+        K key;
+        *(uint64_t*)&key = i;
+        V value;
+        return std::make_pair(key, value);
+      });
+  testOMap.SetSize(size, 32);
+  if constexpr (method == KWAYBUTTERFLYOSORT) {
+    testOMap.InitFromReader(inputReader, DEFAULT_HEAP_SIZE);
+  } else if constexpr (method == BITONICSORT) {
+    testOMap.InitFromReaderBitonic(inputReader);
+  }
+}
+
 void histogram_test(uint64_t size) {
   uint64_t start, end;
   if (EM::Backend::g_DefaultBackend) {
@@ -511,8 +532,70 @@ void histogram_test(uint64_t size) {
   printf("Bitonic %f\n", 1e-9 * (end - start));
 }
 
+template <SortMethod method>
+void testOramInitPerf(uint64_t size = 65536) {
+  static constexpr uint64_t Z = 2;
+  using Apps::ORAMEntry;
+  EM::VirtualVector::VirtualReader<ORAMEntry> inputReader(
+      size, [&](uint64_t i) {
+        ORAMEntry entry;
+        entry.uid = i;
+        entry.pos = UniformRandom(size - 1);
+        return entry;
+      });
+  EM::VirtualVector::VirtualWriter<ORAMEntry> outputWriter(
+      (size * 2 - 1) * Z, [&](uint64_t i, const ORAMEntry& entry) {});
+  ORAMInit<method, Z>(inputReader, outputWriter);
+
+}
+
+void oram_init_test(uint64_t size) {
+    uint64_t start, end;
+  size_t BackendSize = 2048 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testOramInitPerf<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+  ocall_measure_time(&start);
+  testOramInitPerf<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
+void load_balancer_test(uint64_t size) {
+  uint64_t start, end;
+  if (EM::Backend::g_DefaultBackend) {
+    delete EM::Backend::g_DefaultBackend;
+  }
+  size_t BackendSize = 1024 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testLoadBalancer<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+
+  ocall_measure_time(&start);
+  testLoadBalancer<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
 void ecall_app_perf() {
+  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
+  //   histogram_test(size);
+  // }
+
+  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
+  //   size = 1UL << GetLogBaseTwo(size);
+  //   oram_init_test(size);
+  // }
+
   for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
-    histogram_test(size);
+    load_balancer_test(size);
   }
 }

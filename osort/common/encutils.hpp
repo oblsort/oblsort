@@ -27,6 +27,22 @@ bool aes_256_ctr_decrypt(uint64_t ciphertextSize, uint8_t* ciphertext,
                          const uint8_t key[AES_BLOCK_SIZE],
                          uint8_t iv[AES_BLOCK_SIZE], uint8_t* plaintext);
 
+void read_rand(uint8_t* output, size_t size);
+uint64_t secure_hash_with_salt(const uint8_t* data, size_t data_size,
+                               const uint8_t (&salt)[16]);
+
+template <typename T>
+uint64_t secure_hash_with_salt(const T& data, const uint8_t (&salt)[16]);
+
+template <typename T>
+void secure_hash_with_salt(const T& data, const uint8_t (&salt)[16], void* res,
+                           uint8_t resSize);
+
+template <typename T>
+uint64_t secure_hash_with_salt(const T& data, const uint8_t (&salt)[16]) {
+  return secure_hash_with_salt((const uint8_t*)&data, sizeof(T), salt);
+}
+
 template <class result_type_param = uint64_t>
 class RandomDevice : public std::random_device {
  public:

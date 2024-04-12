@@ -42,8 +42,10 @@ struct LargeBlockAllocator {
         }
       }
     }
-
-    Assert(bestIdx != (uint64_t)-1);
+    if (bestIdx == (uint64_t)-1) {
+      printf("Failed to allocate %lu bytes\n", _size);
+      abort();
+    }
     AllocatorSlot ret = freeList[bestIdx];
     ret.size = _size;
     freeList[bestIdx].size -= _size;

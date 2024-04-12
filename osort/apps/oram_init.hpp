@@ -72,8 +72,12 @@ void ORAMInitHelper(Reader& reader, Writer& writer, int level = 0) {
         size * (Z + 1), [&](uint64_t idx, const LevelPosEntry& entry) {
           intermediateWriter.write(entry.entry);
         });
+    uint64_t heapSize = DEFAULT_HEAP_SIZE;
+    if constexpr (std::is_same<IntermediateVec, StdVector<ORAMEntry>>::value) {
+      heapSize -= sizeof(ORAMEntry) * size * (Z + 2);
+    }
     if constexpr (method == KWAYBUTTERFLYOSORT) {
-      KWayButterflySort(vReader, intermediateVWriter, DEFAULT_HEAP_SIZE);
+      KWayButterflySort(vReader, intermediateVWriter, heapSize);
     } else if constexpr (method == BITONICSORT) {
       BitonicSortRW(vReader, intermediateVWriter);
     }
@@ -103,7 +107,7 @@ void ORAMInitHelper(Reader& reader, Writer& writer, int level = 0) {
           }
         });
     if constexpr (method == KWAYBUTTERFLYOSORT) {
-      KWayButterflySort(vReader2, vWriter, DEFAULT_HEAP_SIZE);
+      KWayButterflySort(vReader2, vWriter, heapSize);
     } else if constexpr (method == BITONICSORT) {
       BitonicSortRW(vReader2, vWriter);
     }
@@ -125,7 +129,8 @@ template <const SortMethod method, uint64_t Z = 4, class Reader, class Writer>
 void ORAMInit(Reader& reader, Writer& writer) {
   static_assert(method == KWAYBUTTERFLYOSORT || method == BITONICSORT,
                 "Invalid method for ORAMInit");
-  if (DEFAULT_HEAP_SIZE < sizeof(ORAMEntry) * reader.size() * Z * 6) {
+  if (DEFAULT_HEAP_SIZE < sizeof(ORAMEntry) * reader.size() * (Z * 5 + 2)) {
+    printf("Uses external memory\n");
     using IntermediateVec = EM::NonCachedVector::Vector<ORAMEntry>;
     ORAMInitHelper<IntermediateVec, method, Z>(reader, writer);
   } else {
