@@ -3,6 +3,7 @@
 #include "apps/histogram.hpp"
 #include "apps/load_balancer.hpp"
 #include "apps/oram_init.hpp"
+#include "apps/db_join.hpp"
 #include "external_memory/algorithm/ca_bucket_sort.hpp"
 #include "external_memory/algorithm/kway_butterfly_sort.hpp"
 #include "external_memory/algorithm/kway_distri_sort.hpp"
@@ -117,10 +118,7 @@ void ecall_pageswap_with_crypt_perf() {
   for (int round = 0; round < 8; ++round) {
     Vector<SortElement>::Writer writer(vExt.begin(), vExt.end());
     for (uint64_t i = 0; i < size; ++i) {
-      SortElement element = SortElement();
-      element.key = UniformRandom();
-      printf("%ld\n", element.key);
-      writer.write(element);
+      writer.write(SortElement());
     }
   }
   ocall_measure_time(&currTime2);
@@ -128,6 +126,37 @@ void ecall_pageswap_with_crypt_perf() {
     Vector<SortElement>::PrefetchReader reader(vExt.begin(), vExt.end());
     for (uint64_t i = 0; i < size; ++i) {
       r ^= reader.read().key;
+    }
+  }
+  ocall_measure_time(&currTime3);
+
+  printf("r = %ld\n", r);
+  uint64_t timediff1 = currTime2 - currTime;
+  uint64_t timediff2 = currTime3 - currTime2;
+  printf("Elapsed: %d.%d s for write pages\n", timediff1 / 1'000'000'000,
+         timediff1 % 1'000'000'000);
+  printf("Elapsed: %d.%d s for read pages\n", timediff2 / 1'000'000'000,
+         timediff2 % 1'000'000'000);
+}
+
+void ecall_linear_scan_perf() {
+  printf("ecall_linear_scan_perf called\n");
+  uint64_t size = (1UL << 24);
+  uint64_t currTime, currTime2, currTime3;
+
+  uint64_t r = 0;
+ 
+  std::vector<SortElement> vExt(size);
+  ocall_measure_time(&currTime);
+  for (int round = 0; round < 8; ++round) {
+    for (uint64_t i = 0; i < size; ++i) {
+      vExt[i] = SortElement();
+    }
+  }
+  ocall_measure_time(&currTime2);
+  for (int round = 0; round < 8; ++round) {
+    for (uint64_t i = 0; i < size; ++i) {
+      r ^= vExt[i].key;
     }
   }
   ocall_measure_time(&currTime3);
@@ -584,17 +613,70 @@ void load_balancer_test(uint64_t size) {
   printf("Bitonic %f\n", 1e-9 * (end - start));
 }
 
+template <SortMethod method>
+void testDBJoin(uint64_t size) {
+  static constexpr uint64_t payload1Size = 256;
+  static constexpr uint64_t payload2Size = 256;
+  using DBEntry1 = Apps::DBEntry<Bytes<payload1Size>>;
+  using DBEntry2 = Apps::DBEntry<Bytes<payload2Size>>;
+  struct Pair {
+    Bytes<payload1Size> first;
+    Bytes<payload2Size> second;
+  };
+  using DBEntry_ = Apps::DBEntry<Pair>;
+  EM::VirtualVector::VirtualReader<DBEntry1> reader1(
+      size, [&](uint64_t i) {
+        DBEntry1 entry;
+        entry.id = i * 2;
+        return entry;
+      });
+  EM::VirtualVector::VirtualReader<DBEntry2> reader2(
+      size, [&](uint64_t i) {
+        DBEntry2 entry;
+        entry.id = i * 3;
+        return entry;
+      });
+  EM::VirtualVector::VirtualWriter<DBEntry_> writer(
+      size * 2, [&](uint64_t i, const DBEntry_& entry) {});
+  Apps::dbJoin<method>(reader1, reader2, writer);
+}
+
+void dbjoin_test(uint64_t size) {
+  uint64_t start, end;
+  if (EM::Backend::g_DefaultBackend) {
+    delete EM::Backend::g_DefaultBackend;
+  }
+  size_t BackendSize = 4096 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testDBJoin<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+
+  ocall_measure_time(&start);
+  testDBJoin<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
 void ecall_app_perf() {
   // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
   //   histogram_test(size);
   // }
 
-  for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
-    size = 1UL << GetLogBaseTwo(size);
-    oram_init_test(size);
-  }
+  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
+  //   size = 1UL << GetLogBaseTwo(size);
+  //   oram_init_test(size);
+  // }
 
   // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
   //   load_balancer_test(size);
   // }
+
+  for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
+    size = 1UL << GetLogBaseTwo(size);
+    dbjoin_test(size);
+  }
 }
