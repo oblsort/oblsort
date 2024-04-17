@@ -1,8 +1,8 @@
 #include "../Enclave.h"
 #include "Enclave_t.h"
 #include "apps/histogram.hpp"
-#include "apps/oram_init.hpp"
 #include "apps/load_balancer.hpp"
+#include "apps/oram_init.hpp"
 #include "external_memory/algorithm/ca_bucket_sort.hpp"
 #include "external_memory/algorithm/kway_butterfly_sort.hpp"
 #include "external_memory/algorithm/kway_distri_sort.hpp"
@@ -546,11 +546,10 @@ void testOramInitPerf(uint64_t size = 65536) {
   EM::VirtualVector::VirtualWriter<ORAMEntry> outputWriter(
       (size * 2 - 1) * Z, [&](uint64_t i, const ORAMEntry& entry) {});
   ORAMInit<method, Z>(inputReader, outputWriter);
-
 }
 
 void oram_init_test(uint64_t size) {
-    uint64_t start, end;
+  uint64_t start, end;
   size_t BackendSize = 2048 * size;
   EM::Backend::g_DefaultBackend =
       new EM::Backend::MemServerBackend(BackendSize);
@@ -590,12 +589,12 @@ void ecall_app_perf() {
   //   histogram_test(size);
   // }
 
-  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
-  //   size = 1UL << GetLogBaseTwo(size);
-  //   oram_init_test(size);
-  // }
-
-  for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
-    load_balancer_test(size);
+  for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
+    size = 1UL << GetLogBaseTwo(size);
+    oram_init_test(size);
   }
+
+  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
+  //   load_balancer_test(size);
+  // }
 }

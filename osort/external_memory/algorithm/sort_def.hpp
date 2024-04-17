@@ -10,7 +10,7 @@
 
 // size of each element in bytes
 #ifndef ELEMENT_SIZE
-#define ELEMENT_SIZE 128
+#define ELEMENT_SIZE 200
 #endif
 
 namespace EM::Algorithm {

@@ -573,7 +573,6 @@ struct ParOMap {
             thisBatchSize = inputSize - i * batchSize;
         }
         StdVector<PartitionElement> vec(thisBatchSize + bktSize * numShards);
-        printf("vec size in MB: %f\n", vec.size() * sizeof(PartitionElement) / 1024.0 / 1024.0);
         for (uint64_t j = 0; j < thisBatchSize; ++j) {
             const std::pair<K, V>& kvPair = reader.read();
             uint64_t hash = secure_hash_with_salt((uint8_t*)&kvPair.first, sizeof(K), randSalt);
