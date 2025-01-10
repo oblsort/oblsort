@@ -353,7 +353,7 @@ void MergeSplitInPlace(Iterator begin, Iterator end, Indicator indicator,
   }
   const bool dir = markCount > Z;
   uint64_t diff = Z - markCount;
-  CMOV(dir, diff, -diff);
+  obliMove(dir, diff, -diff);
 
   for (auto it = begin; it != end; ++it) {
     bool isMarked = it->isMarked(indicator);
@@ -434,7 +434,7 @@ void MergeSplitTwoWay(Iterator beginLeft, Iterator beginRight, size_t Z,
   }
   const bool dir = markCount > Z;
   uint64_t diff = Z - markCount;
-  CMOV(dir, diff, -diff);
+  obliMove(dir, diff, -diff);
 
   end = endLeft;
   for (auto it = beginLeft;; ++it) {
@@ -540,11 +540,11 @@ void MergeSplitKWay(const Iterator* begins, const size_t k, const size_t Z,
   // assume that there's at least one dummy for each mark
   for (marksIt = marks; marksIt != marks + Z * k; ++marksIt) {
     uint8_t isDummy = (*marksIt == (uint8_t)-1);
-    CMOV(isDummy, *marksIt, (uint8_t)currMark);
+    obliMove(isDummy, *marksIt, (uint8_t)currMark);
     currRemain -= isDummy;
     currMark += !currRemain;
     uint32_t remainCount = mm256_extract_epi32_var_indx(remainCounts, currMark);
-    CMOV(!currRemain, currRemain, remainCount);
+    obliMove(!currRemain, currRemain, remainCount);
     Assert(currRemain > 0);
   }
   Interleave(temp, temp + k * Z, marks, marks + k * Z, k);
@@ -714,6 +714,14 @@ void ExtMergeSort(IOIterator begin, IOIterator end,
   size_t size = end - begin;
   size_t batchSize = heapSize / sizeof(T);
   size_t batchCount = divRoundUp(size, batchSize);
+  if (batchCount == 1) {
+    std::vector<T> mem(size);
+    CopyIn(begin, end, mem.begin(), inAuth);
+    std::sort(mem.begin(), mem.end());
+    uint32_t outAuth = incAuth ? inAuth + 1 : inAuth;
+    CopyOut(mem.begin(), mem.end(), begin, outAuth);
+    return;
+  }
   std::vector<std::pair<Iterator, Iterator>> mergeRanges;
   std::vector<Reader> mergeReaders;
   Vector<T> batchSorted(size);

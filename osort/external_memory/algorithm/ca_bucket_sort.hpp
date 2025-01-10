@@ -37,12 +37,12 @@ void binPacking(Iterator begin, Iterator end, Iterator outputBegin, size_t Z,
   size_t curr = 0;
   for (auto& element : temp) {
     size_t newCurr = (element.tag & rangeMask);
-    CMOV(newCurr != curr, count, 0UL);
+    obliMove(newCurr != curr, count, 0UL);
     curr = newCurr;
     // excess real elements
     Assert(!(count >= Z && !(element.tag & 1UL)));
     // mark excessive element with -1
-    CMOV(count >= Z, element.tag, -1UL);
+    obliMove(count >= Z, element.tag, -1UL);
     ++count;
   }
   BitonicSort(temp, cmpTag);  // could be replaced by OrCompact

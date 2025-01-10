@@ -1,4 +1,5 @@
 #pragma once
+#include "common/cmp_intrinsics.hpp"
 #include "common/defs.hpp"
 #include "common/dummy.hpp"
 #include "common/encrypted.hpp"
@@ -27,7 +28,10 @@ enum SortMethod {
   KWAYBUTTERFLYOSHUFFLE,          // flex-way butterfly o-shuffle
   UNOPTBITONICSORT,               // unoptimized bitonic sort
   EXTMERGESORT,                   // external memory merge sort
-  OTHER                           // other algorithms
+  HISTOGRAM,                      // histogram app
+  DBJOIN,                         // db join app
+  ORAMINIT,                       // oram init app
+  LOADBALANCE                     // load balance app
 };
 
 enum PartitionMethod {
@@ -121,7 +125,7 @@ struct Block {
   inline void setDummy() { setDummyFlag(true); }
   inline void setDummyFlag(bool flag) { this->dummyFlag = flag; }
   inline void setDummyFlagCond(bool cond, bool flag) {
-    CMOV(cond, this->dummyFlag, flag);
+    obliMove(cond, this->dummyFlag, flag);
   }
 };  // struct Block
 
@@ -159,7 +163,7 @@ struct TaggedT {
   inline bool isMarked(uint64_t bitMask) const { return !(tag & bitMask); }
 
   inline void condChangeMark(bool cond, uint64_t bitMask) {
-    CMOV(cond, tag, tag ^ bitMask);
+    obliMove(cond, tag, tag ^ bitMask);
   }
 
   inline uint8_t getMarkAndUpdate(uint64_t k) {
@@ -190,29 +194,45 @@ struct SortElement {
 #endif
 };
 
-INLINE void CMOV(const uint64_t& condition, SortElement& A,
-                 const SortElement& B) {
-  CMOV(condition, A.key, B.key);
-  for (uint64_t i = 0; i < sizeof(SortElement::payload); i += 8) {
-    CMOV(condition, *(uint64_t*)&(A.payload[i]), *(uint64_t*)&(B.payload[i]));
+template <const size_t size>
+struct Bytes {
+ private:
+  uint8_t data[size];
+
+ public:
+  Bytes() { memset(data, 0, size); }
+
+  bool operator==(const Bytes<size>& other) const {
+    return obliCheckEqual<size>(data, other.data);
   }
-}
 
-template <typename T>
-INLINE void CMOV(const uint64_t& condition, EM::Algorithm::Block<T>& A,
-                 const EM::Algorithm::Block<T>& B) {
-  CMOV(condition, A.data, B.data);
-  CMOV(condition, A.tag, B.tag);
-  CMOV(condition, A.dummyFlag, B.dummyFlag);
-  CMOV(condition, A.lessFlag, B.lessFlag);
-}
+  bool operator!=(const Bytes<size>& other) const { return !(*this == other); }
 
-template <typename T>
-INLINE void CMOV(const uint64_t& condition, EM::Algorithm::TaggedT<T>& A,
-                 const EM::Algorithm::TaggedT<T>& B) {
-  CMOV(condition, A.tag, B.tag);
-  CMOV(condition, A.v, B.v);
-}
+  bool operator<(const Bytes<size>& other) const {
+    return obliCheckLess<size>(data, other.data);
+  }
 
-OVERLOAD_TSET_CXCHG(EM::Algorithm::Block<T>, typename T)
-OVERLOAD_TSET_CXCHG(EM::Algorithm::TaggedT<T>, typename T);
+  void SetRand() { read_rand(data, size); }
+
+  const uint8_t* GetData() const { return data; }
+
+// out stream
+#ifndef ENCLAVE_MODE
+  friend std::ostream& operator<<(std::ostream& o, const Bytes<size>& x) {
+    for (size_t i = 0; i < size; ++i) {
+      o << std::hex << std::setw(2) << std::setfill('0') << (int)x.data[i];
+    }
+    return o;
+  }
+#endif
+};
+
+namespace std {
+template <const size_t size>
+struct hash<Bytes<size>> {
+  std::size_t operator()(const Bytes<size>& bytes) const {
+    return std::hash<std::string_view>()(
+        std::string_view((const char*)bytes.GetData(), size));
+  }
+};
+}  // namespace std

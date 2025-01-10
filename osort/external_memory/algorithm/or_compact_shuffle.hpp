@@ -103,8 +103,8 @@ void OrShuffle(Iterator begin, Iterator end, MarkIterator markBegin) {
   ++it;
   for (size_t N = n; N > 0; --N) {
     bool chooseFlag = UniformRandom(0, N - 1) < k;
-    CMOV(chooseFlag, k, k - 1);
-    CMOV(chooseFlag, currsum, currsum + 1);  // prefix sum
+    obliMove(chooseFlag, k, k - 1);
+    obliMove(chooseFlag, currsum, currsum + 1);  // prefix sum
     initIteratorVal(it, currsum);
     ++it;
   }
@@ -145,7 +145,7 @@ void GoodrichCompact(Iterator begin, Iterator end, const Check& isMarked) {
   uint64_t numMarked = 0;
   for (size_t i = 0; i < n; ++i) {
     dist[i] = i - numMarked;
-    CMOV(isMarked(*(begin + i)), numMarked, numMarked + 1);
+    obliMove(isMarked(*(begin + i)), numMarked, numMarked + 1);
   }
   uint64_t level = GetLogBaseTwo(GetNextPowerOfTwo(n));
   for (uint64_t i = 0; i < level; ++i) {
@@ -153,7 +153,7 @@ void GoodrichCompact(Iterator begin, Iterator end, const Check& isMarked) {
       bool jMarked = isMarked(*(begin + j));
       bool swapFlag = jMarked & (!!(dist[j] & ((2UL << i) - 1)));
       condSwap(swapFlag, *(begin + j), *(begin + j - (1UL << i)));
-      CMOV(swapFlag, dist[j - (1UL << i)], (dist[j] >> (i + 1) << (i + 1)));
+      obliMove(swapFlag, dist[j - (1UL << i)], (dist[j] >> (i + 1) << (i + 1)));
     }
   }
 }

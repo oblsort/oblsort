@@ -43,18 +43,33 @@ struct StdVector : public std::vector<T> {
     friend Iterator operator-(const Iterator& it, int32_t size) {
       return Iterator(typename std::vector<T>::iterator(it) - size);
     }
+
+    friend Iterator operator+(const Iterator& it, uint32_t size) {
+      return Iterator(typename std::vector<T>::iterator(it) + size);
+    }
+
+    friend Iterator operator-(const Iterator& it, uint32_t size) {
+      return Iterator(typename std::vector<T>::iterator(it) - size);
+    }
+
     size_t get_page_offset() { return 0; }
   };
-
+  StdVector() : std::vector<T>() {}
   StdVector(uint64_t N) : std::vector<T>(N) {}
   StdVector(Iterator begin, Iterator end) : std::vector<T>(begin, end) {}
 
   StdVector(uint64_t N, const T& val) : std::vector<T>(N, val) {}
+  StdVector(const StdVector& other) : std::vector<T>(other) {}
+  StdVector(StdVector&& other) : std::vector<T>(std::move(other)) {}
 
   Iterator begin() { return Iterator(std::vector<T>::begin()); }
 
   Iterator end() { return Iterator(std::vector<T>::end()); }
 
+  void resize(uint64_t N) { std::vector<T>::resize(N); }
+  void SetSize(uint64_t N, uint64_t _ignore1 = 0, uint64_t _ignore2 = 0) {
+    resize(N);
+  }
   INLINE size_t size() { return std::vector<T>::size(); }
 
   struct Reader {

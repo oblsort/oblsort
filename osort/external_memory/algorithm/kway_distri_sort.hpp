@@ -218,10 +218,10 @@ std::vector<Block<T>> sampleForPivots(IOIterator begin, IOIterator end,
       if constexpr (reservoir) {
         uint64_t z = UniformRandom(Np - 1);
         bool chosen = z < np;
-        CMOV(!chosen, Mem[j], DUMMY<Block<T>>());
+        obliMove(!chosen, Mem[j], DUMMY<Block<T>>());
         auto realData = Block<T>();
         realData.setData(inputReader.read(), count);
-        CMOV(chosen, Mem[j], realData);
+        obliMove(chosen, Mem[j], realData);
         np -= chosen;
         --Np;
       } else {
@@ -229,9 +229,9 @@ std::vector<Block<T>> sampleForPivots(IOIterator begin, IOIterator end,
         bool chosen = z <= expectedSampleSize;
         auto realData = Block<T>();
         realData.setData(inputReader.read(), count);
-        CMOV(chosen, Mem[j], realData);
-        CMOV(!chosen, Mem[j], DUMMY<Block<T>>());
-        CMOV(chosen, sampleSize, sampleSize + 1);
+        obliMove(chosen, Mem[j], realData);
+        obliMove(!chosen, Mem[j], DUMMY<Block<T>>());
+        obliMove(chosen, sampleSize, sampleSize + 1);
       }
     }
     OrCompact(Mem, Mem + batchSize, isMarked);

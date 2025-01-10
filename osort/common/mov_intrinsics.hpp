@@ -7,16 +7,6 @@
 #include <utility>
 
 #include "cpp_extended.hpp"
-INLINE void CSWAP8(const uint64_t cond, uint64_t& guy1, uint64_t& guy2) {
-  asm volatile(
-      "test %[mcond], %[mcond]\n\t"
-      "mov %[i1], %%r9\n\t"
-      "cmovnz %[i2], %[i1]\n\t"
-      "cmovnz %%r9, %[i2]\n\t"
-      : [i1] "=r"(guy1), [i2] "=r"(guy2)
-      : [mcond] "r"(cond), "[i1]"(guy1), "[i2]"(guy2)
-      : "r9");
-}
 
 INLINE void CMOV8_internal(const uint64_t cond, uint64_t& guy1,
                            const uint64_t& guy2) {
@@ -66,48 +56,28 @@ INLINE void CMOV_BOOL(const uint64_t& cond, bool& val1, const bool& val2) {
   val1 = v1;
 }
 
-// Note: Possible generic implementation of CMOV, that we don't use.
-// template<typename T>
-// void ObliMov(bool mov, T* guy1, T* guy2) {
-//   static_assert(sizeof(T)%8 == 0);
-//   uint64_t* curr1 = (uint64_t*)guy1;
-//   uint64_t* curr2 = (uint64_t*)guy2;
-//   for (uint64_t i = 0; i < sizeof(T) / 8; ++i) {
-//     CMOV(mov, *curr1, *curr2);
-//     curr1++;
-//     curr2++;
-//   }
-// }
-
-template <typename T>
-INLINE void CMOV(const uint64_t& cond, T& val1, const T& val2) {
-  Assert(false,
-         "This should mov not be compiled check that you implemented CMOV"
-         "and that if you used overloading that you called "
-         "OVERLOAD_TSET_CXCHG. For type: ",
-         typeid(T).name());
-  if (cond) {
-    val1 = val2;
-  }
+INLINE void CXCHG1(const uint64_t& cond, uint8_t& A, uint8_t& B) {
+  const uint8_t C = A;
+  CMOV1(cond, A, B);
+  CMOV1(cond, B, C);
 }
 
-template <typename T>
-INLINE void TSET(bool selector, T& A, const T& B, const T& C) {
-  CMOV(selector, A, C);
-  CMOV(!selector, A, B);
+INLINE void CXCHG2(const uint64_t& cond, uint16_t& A, uint16_t& B) {
+  const uint16_t C = A;
+  CMOV2(cond, A, B);
+  CMOV2(cond, B, C);
 }
 
-template <typename T>
-INLINE void CTSET(bool condition, bool selector, T& A, const T& B, const T& C) {
-  CMOV(condition * selector, A, C);
-  CMOV(condition * !selector, A, B);
+INLINE void CXCHG4(const uint64_t& cond, uint32_t& A, uint32_t& B) {
+  const uint32_t C = A;
+  CMOV4(cond, A, B);
+  CMOV4(cond, B, C);
 }
 
-template <typename T>
-INLINE void CXCHG(const uint64_t& cond, T& A, T& B) {
-  const T C = A;
-  CMOV(cond, A, B);
-  CMOV(cond, B, C);
+INLINE void CXCHG8(const uint64_t& cond, uint64_t& A, uint64_t& B) {
+  const uint64_t C = A;
+  CMOV8(cond, A, B);
+  CMOV8(cond, B, C);
 }
 
 template <const uint64_t sz>
@@ -117,18 +87,8 @@ INLINE void CXCHG_internal(const bool cond, void* vec1, void* vec2) {
   const __mmask8 blend_mask = (__mmask8)(!cond) - 1;
 #endif
   if constexpr (sz == 64) {
-#if false && defined(__AVX512VL__)
-    /* alternative implementation
-    __m512i vec1_temp, vec2_temp;
-    std::memcpy(&vec1_temp, vec1, 64);
-    std::memcpy(&vec2_temp, vec2, 64);
-    const __m512i& vec1_after_swap =
-        _mm512_mask_blend_epi64(blend_mask, vec1_temp, vec2_temp);
-    const __m512i& vec2_after_swap =
-        _mm512_mask_blend_epi64(blend_mask, vec2_temp, vec1_temp);
-    std::memcpy(vec1, &vec1_after_swap, 64);
-    std::memcpy(vec2, &vec2_after_swap, 64);
-    */
+#if false && \
+    defined(__AVX512VL__)  // 512-bit swap is slower than two 256-bit swap
     __m512i vec1_temp, vec2_temp;
     __m512i temp;
     std::memcpy(&vec1_temp, vec1, 64);
@@ -160,18 +120,6 @@ INLINE void CXCHG_internal(const bool cond, void* vec1, void* vec2) {
     std::memcpy(vec1, &vec1_after_swap, 32);
     std::memcpy(vec2, &vec2_after_swap, 32);
 #elif defined(__AVX2__)
-    /* alternative implementation
-    __m256i vec1_temp, vec2_temp;
-    std::memcpy(&vec1_temp, vec1, 32);
-    std::memcpy(&vec2_temp, vec2, 32);
-    __m256i mask = _mm256_set1_epi8(-cond);
-    const __m256i& vec1_after_swap =
-        _mm256_blendv_epi8(vec1_temp, vec2_temp, mask);
-    const __m256i& vec2_after_swap =
-        _mm256_blendv_epi8(vec2_temp, vec1_temp, mask);
-    std::memcpy(vec1, &vec1_after_swap, 32);
-    std::memcpy(vec2, &vec2_after_swap, 32);
-    */
     __m256i vec1_temp, vec2_temp;
     __m256i temp;
     std::memcpy(&vec1_temp, vec1, 32);
@@ -223,25 +171,25 @@ INLINE void CXCHG_internal(const bool cond, void* vec1, void* vec2) {
     constexpr uint64_t offset = 2 * (sz / 16);
     uint64_t* curr1_64 = (uint64_t*)vec1 + offset;
     uint64_t* curr2_64 = (uint64_t*)vec2 + offset;
-    CXCHG(cond, *curr1_64, *curr2_64);
+    CXCHG8(cond, *curr1_64, *curr2_64);
   }
   if constexpr (sz % 8 >= 4) {
     constexpr uint64_t offset = 2 * (sz / 8);
     uint32_t* curr1_32 = (uint32_t*)vec1 + offset;
     uint32_t* curr2_32 = (uint32_t*)vec2 + offset;
-    CXCHG(cond, *curr1_32, *curr2_32);
+    CXCHG4(cond, *curr1_32, *curr2_32);
   }
   if constexpr (sz % 4 >= 2) {
     constexpr uint64_t offset = 2 * (sz / 4);
     uint16_t* curr1_16 = (uint16_t*)vec1 + offset;
     uint16_t* curr2_16 = (uint16_t*)vec2 + offset;
-    CXCHG(cond, *curr1_16, *curr2_16);
+    CXCHG2(cond, *curr1_16, *curr2_16);
   }
   if constexpr (sz % 2 >= 1) {
     constexpr uint64_t offset = 2 * (sz / 2);
     uint8_t* curr1_8 = (uint8_t*)vec1 + offset;
     uint8_t* curr2_8 = (uint8_t*)vec2 + offset;
-    CXCHG(cond, *curr1_8, *curr2_8);
+    CXCHG1(cond, *curr1_8, *curr2_8);
   }
 }
 
@@ -261,7 +209,7 @@ INLINE void CMOV_internal(const bool cond, void* dest, const void* src) {
     // on skylake, it's faster to run 256bit instructions two times
 #else
     CMOV_internal<32>(cond, dest, src);
-    CMOV_internal<32>(cond, (char*)dest + 32, (char*)src + 32);
+    CMOV_internal<32>(cond, (char*)dest + 32, (const char*)src + 32);
 #endif
     return;
   }
@@ -269,56 +217,56 @@ INLINE void CMOV_internal(const bool cond, void* dest, const void* src) {
 #if defined(__AVX2__)
     const __m256i mask =
         _mm256_set1_epi64x(-(!!cond));  // Create a mask based on cond
-    __m256i srcVec = _mm256_loadu_si256((__m256i*)src);
+    __m256i srcVec = _mm256_loadu_si256((const __m256i*)src);
     __m256i destVec =
         _mm256_blendv_epi8(_mm256_loadu_si256((__m256i*)dest), srcVec, mask);
     _mm256_storeu_si256((__m256i*)dest, destVec);
 #else
     CMOV_internal<16>(cond, dest, src);
-    CMOV_internal<16>(cond, (char*)dest + 16, (char*)src + 16);
+    CMOV_internal<16>(cond, (char*)dest + 16, (const char*)src + 16);
 #endif
   }
   if constexpr (sz % 32 >= 16) {
     constexpr uint64_t offset = 4 * (sz / 32);
-    uint64_t* src8 = (uint64_t*)src + offset;
+    const uint64_t* src8 = (const uint64_t*)src + offset;
     uint64_t* dest8 = (uint64_t*)dest + offset;
 #if defined(__SSE2__)
     const __m128i mask =
         _mm_set1_epi64x(-(!!cond));  // Create a mask based on cond
-    __m128i srcVec = _mm_loadu_si128((__m128i*)src8);
+    __m128i srcVec = _mm_loadu_si128((const __m128i*)src8);
     __m128i destVec = _mm_loadu_si128((__m128i*)dest8);
     __m128i blended = _mm_or_si128(_mm_and_si128(mask, srcVec),
                                    _mm_andnot_si128(mask, destVec));
     _mm_storeu_si128((__m128i*)dest8, blended);
 #else
     CMOV_internal<8>(cond, dest8, src8);
-    CMOV_internal<8>(cond, (char*)dest8 + 8, (char*)src8 + 8);
+    CMOV_internal<8>(cond, (char*)dest8 + 8, (const char*)src8 + 8);
 #endif
   }
 
   if constexpr (sz % 16 >= 8) {
     constexpr uint64_t offset = 2 * (sz / 16);
     uint64_t* curr1_64 = (uint64_t*)dest + offset;
-    uint64_t* curr2_64 = (uint64_t*)src + offset;
-    CMOV(cond, *curr1_64, *curr2_64);
+    const uint64_t* curr2_64 = (const uint64_t*)src + offset;
+    CMOV8(cond, *curr1_64, *curr2_64);
   }
   if constexpr (sz % 8 >= 4) {
     constexpr uint64_t offset = 2 * (sz / 8);
     uint32_t* curr1_32 = (uint32_t*)dest + offset;
-    uint32_t* curr2_32 = (uint32_t*)src + offset;
-    CMOV(cond, *curr1_32, *curr2_32);
+    const uint32_t* curr2_32 = (const uint32_t*)src + offset;
+    CMOV4(cond, *curr1_32, *curr2_32);
   }
   if constexpr (sz % 4 >= 2) {
     constexpr uint64_t offset = 2 * (sz / 4);
     uint16_t* curr1_16 = (uint16_t*)dest + offset;
-    uint16_t* curr2_16 = (uint16_t*)src + offset;
-    CMOV(cond, *curr1_16, *curr2_16);
+    const uint16_t* curr2_16 = (const uint16_t*)src + offset;
+    CMOV2(cond, *curr1_16, *curr2_16);
   }
   if constexpr (sz % 2 >= 1) {
     constexpr uint64_t offset = 2 * (sz / 2);
     uint8_t* curr1_8 = (uint8_t*)dest + offset;
-    uint8_t* curr2_8 = (uint8_t*)src + offset;
-    CMOV(cond, *curr1_8, *curr2_8);
+    const uint8_t* curr2_8 = (const uint8_t*)src + offset;
+    CMOV1(cond, *curr1_8, *curr2_8);
   }
 }
 
@@ -342,7 +290,7 @@ INLINE void obliSwap(const bool mov, T& guy1, T& guy2) {
 template <typename T>
 INLINE bool obliMove(const bool mov, T& dest, const T& src) {
   __m512i* curr1 = (__m512i*)&dest;
-  const __m512i* curr2 = (__m512i*)&src;
+  const __m512i* curr2 = (const __m512i*)&src;
   for (uint64_t i = 0; i < sizeof(T) / 64; ++i) {
     CMOV_internal<64>(mov, curr1, curr2);
     curr1++;
@@ -354,97 +302,6 @@ INLINE bool obliMove(const bool mov, T& dest, const T& src) {
   }
   return mov;
 }
-
-// Some CMOV specializations:
-//
-template <>
-INLINE void CMOV<uint64_t>(const uint64_t& cond, uint64_t& val1,
-                           const uint64_t& val2) {
-  CMOV8(cond, val1, val2);
-}
-
-template <>
-INLINE void CMOV<uint32_t>(const uint64_t& cond, uint32_t& val1,
-                           const uint32_t& val2) {
-  CMOV4(cond, val1, val2);
-}
-
-template <>
-INLINE void CMOV<uint16_t>(const uint64_t& cond, uint16_t& val1,
-                           const uint16_t& val2) {
-  CMOV2(cond, val1, val2);
-}
-
-template <>
-INLINE void CMOV<uint8_t>(const uint64_t& cond, uint8_t& val1,
-                          const uint8_t& val2) {
-  CMOV1(cond, val1, val2);
-}
-
-template <>
-INLINE void CMOV<bool>(const uint64_t& cond, bool& val1, const bool& val2) {
-  CMOV_BOOL(cond, val1, val2);
-}
-
-template <>
-INLINE void CMOV<int>(const uint64_t& cond, int& val1, const int& val2) {
-  CMOV4(cond, (uint32_t&)val1, val2);
-}
-
-template <>
-INLINE void CMOV<short>(const uint64_t& cond, short& val1, const short& val2) {
-  CMOV2(cond, (uint16_t&)val1, val2);
-}
-
-template <>
-INLINE void CMOV<int8_t>(const uint64_t& cond, int8_t& val1,
-                         const int8_t& val2) {
-  CMOV1(cond, (uint8_t&)val1, val2);
-}
-
-// Other cmov specializations are inside the respective headers for the types.
-// Make sure to always include this file first so that overloads get resolved,
-// correctly.
-//
-// Aditionally, TSET and CXCHG need to be overloaded if CMOV is overloaded
-// for a given type also:
-//
-
-#define OVERLOAD_TSET_CXCHG(TYPE, ...)                                     \
-                                                                           \
-  template <__VA_ARGS__>                                                   \
-  INLINE void TSET(bool selector, TYPE& A, const TYPE& B, const TYPE& C) { \
-    CMOV(selector, A, C);                                                  \
-    CMOV(!selector, A, B);                                                 \
-  }                                                                        \
-                                                                           \
-  template <__VA_ARGS__>                                                   \
-  INLINE void CTSET(bool condition, bool selector, TYPE& A, const TYPE& B, \
-                    const TYPE& C) {                                       \
-    CMOV(condition* selector, A, C);                                       \
-    CMOV(condition * !selector, A, B);                                     \
-  }                                                                        \
-                                                                           \
-  template <__VA_ARGS__>                                                   \
-  INLINE void CXCHG(const uint64_t& cond, TYPE& A, TYPE& B) {              \
-    if constexpr (sizeof(TYPE(A)) == 8) {                                  \
-      CSWAP8(cond, (uint64_t&)A, (uint64_t&)B);                            \
-      return;                                                              \
-    }                                                                      \
-    const TYPE C = A;                                                      \
-    CMOV(cond, A, B);                                                      \
-    CMOV(cond, B, C);                                                      \
-  }
-
-// Overload for CMOV of pair
-template <typename A, typename B>
-INLINE void CMOV(const uint64_t& cond, std::pair<A, B>& val1,
-                 const std::pair<A, B>& val2) {
-  CMOV(cond, val1.first, val2.first);
-  CMOV(cond, val1.second, val2.second);
-}
-
-OVERLOAD_TSET_CXCHG(std::pair<X COMMA Y>, typename X, typename Y);
 
 #ifdef __AVX2__
 #define m256i __m256i
@@ -472,18 +329,18 @@ INLINE m256i mm256_decrement_epi32_var_indx(const m256i vec,
 struct m256i {
   int32_t data[8];
 };
-static INLINE int32_t mm256_extract_epi32_var_indx(const m256i vec,
+static INLINE int32_t mm256_extract_epi32_var_indx(const m256i& vec,
                                                    const unsigned int i) {
   int32_t ans;
   for (unsigned int j = 0; j < 8; ++j) {
-    CMOV(i == j, ans, vec.data[j]);
+    obliMove(i == j, ans, vec.data[j]);
   }
   return ans;
 }
 static INLINE m256i mm256_decrement_epi32_var_indx(m256i vec,
                                                    const unsigned int i) {
   for (unsigned int j = 0; j < 8; ++j) {
-    CMOV(i == j, vec.data[j], vec.data[j] - 1);
+    obliMove(i == j, vec.data[j], vec.data[j] - 1);
   }
   return vec;
 }

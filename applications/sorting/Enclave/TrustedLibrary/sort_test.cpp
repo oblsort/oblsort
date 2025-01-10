@@ -1,5 +1,9 @@
 #include "../Enclave.h"
 #include "Enclave_t.h"
+#include "apps/db_join.hpp"
+#include "apps/histogram.hpp"
+#include "apps/load_balancer.hpp"
+#include "apps/oram_init.hpp"
 #include "external_memory/algorithm/ca_bucket_sort.hpp"
 #include "external_memory/algorithm/kway_butterfly_sort.hpp"
 #include "external_memory/algorithm/kway_distri_sort.hpp"
@@ -20,10 +24,32 @@ using namespace EM::Algorithm;
 using namespace EM::NonCachedVector;
 EM::Backend::MemServerBackend* EM::Backend::g_DefaultBackend = nullptr;
 
+void histogram_test(uint64_t size);
+void oram_init_test(uint64_t size);
+void load_balance_test(uint64_t size);
+void dbjoin_test(uint64_t size);
+
 void ecall_sort_perf() {
   // printf("ecall_sort_perf called\n");
   dbg_printf("run in debug mode\n");
-  // using TestVector = EM::ExtVector::Vector<SortElement, 4032, true, 28000>;
+  if constexpr (ALGO >= HISTOGRAM) {
+    // test applications
+    for (double factor = 1; factor <= MAX_SIZE / MIN_SIZE;
+         factor *= STEP_RATIO) {
+      uint64_t size = (uint64_t)(factor * MIN_SIZE);
+      if constexpr (ALGO == HISTOGRAM) {
+        histogram_test(size);
+      } else if constexpr (ALGO == ORAMINIT) {
+        oram_init_test(size);
+      } else if constexpr (ALGO == LOADBALANCE) {
+        load_balance_test(size);
+      } else if constexpr (ALGO == DBJOIN) {
+        dbjoin_test(size);
+      }
+    }
+    return;
+  }
+
   constexpr bool NeedCache = ALGO == ORSHUFFLE || ALGO == BITONICSORT ||
                              ALGO == UNOPTBITONICSORT || ALGO == BITONICSHUFFLE;
   constexpr size_t IdealPageSize = 16384;
@@ -114,10 +140,7 @@ void ecall_pageswap_with_crypt_perf() {
   for (int round = 0; round < 8; ++round) {
     Vector<SortElement>::Writer writer(vExt.begin(), vExt.end());
     for (uint64_t i = 0; i < size; ++i) {
-      SortElement element = SortElement();
-      element.key = UniformRandom();
-      printf("%ld\n", element.key);
-      writer.write(element);
+      writer.write(SortElement());
     }
   }
   ocall_measure_time(&currTime2);
@@ -125,6 +148,37 @@ void ecall_pageswap_with_crypt_perf() {
     Vector<SortElement>::PrefetchReader reader(vExt.begin(), vExt.end());
     for (uint64_t i = 0; i < size; ++i) {
       r ^= reader.read().key;
+    }
+  }
+  ocall_measure_time(&currTime3);
+
+  printf("r = %ld\n", r);
+  uint64_t timediff1 = currTime2 - currTime;
+  uint64_t timediff2 = currTime3 - currTime2;
+  printf("Elapsed: %d.%d s for write pages\n", timediff1 / 1'000'000'000,
+         timediff1 % 1'000'000'000);
+  printf("Elapsed: %d.%d s for read pages\n", timediff2 / 1'000'000'000,
+         timediff2 % 1'000'000'000);
+}
+
+void ecall_linear_scan_perf() {
+  printf("ecall_linear_scan_perf called\n");
+  uint64_t size = (1UL << 24);
+  uint64_t currTime, currTime2, currTime3;
+
+  uint64_t r = 0;
+
+  std::vector<SortElement> vExt(size);
+  ocall_measure_time(&currTime);
+  for (int round = 0; round < 8; ++round) {
+    for (uint64_t i = 0; i < size; ++i) {
+      vExt[i] = SortElement();
+    }
+  }
+  ocall_measure_time(&currTime2);
+  for (int round = 0; round < 8; ++round) {
+    for (uint64_t i = 0; i < size; ++i) {
+      r ^= vExt[i].key;
     }
   }
   ocall_measure_time(&currTime3);
@@ -475,4 +529,154 @@ void ecall_bitonic_perf() {
     ocall_measure_time(&end);
     printf("%f, ", 1e-9 * (end - start));
   }
+}
+
+template <SortMethod method>
+void testHistogramPerf(uint64_t size) {
+  using Url = Bytes<256>;
+  using HistEntry_ = Apps::HistEntry<Url>;
+  EM::VirtualVector::VirtualReader<Url> inputReader(
+      size, [&](uint64_t i) { return Url{}; });
+
+  EM::VirtualVector::VirtualWriter<HistEntry_> outputWriter(
+      size, [&](uint64_t i, const HistEntry_& entry) {});
+  Apps::histogram<method>(inputReader, outputWriter);
+}
+
+template <SortMethod method>
+void testLoadBalancer(uint64_t size) {
+  using K = Bytes<32>;
+  using V = Bytes<32>;
+  Apps::ParOMap<K, V, uint64_t> testOMap;
+  EM::VirtualVector::VirtualReader<std::pair<K, V>> inputReader(
+      size, [&](uint64_t i) {
+        K key;
+        *(uint64_t*)&key = i;
+        V value;
+        return std::make_pair(key, value);
+      });
+  testOMap.SetSize(size, 32);
+  if constexpr (method == KWAYBUTTERFLYOSORT) {
+    testOMap.InitFromReader(inputReader, DEFAULT_HEAP_SIZE);
+  } else if constexpr (method == BITONICSORT) {
+    testOMap.InitFromReaderBitonic(inputReader);
+  }
+}
+
+void histogram_test(uint64_t size) {
+  uint64_t start, end;
+  if (EM::Backend::g_DefaultBackend) {
+    delete EM::Backend::g_DefaultBackend;
+  }
+  size_t BackendSize = 1024 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testHistogramPerf<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+
+  ocall_measure_time(&start);
+  testHistogramPerf<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
+template <SortMethod method>
+void testOramInitPerf(uint64_t size = 65536) {
+  static constexpr uint64_t Z = 2;
+  using Apps::ORAMEntry;
+  EM::VirtualVector::VirtualReader<ORAMEntry> inputReader(
+      size, [&](uint64_t i) {
+        ORAMEntry entry;
+        entry.uid = i;
+        entry.pos = UniformRandom(size - 1);
+        return entry;
+      });
+  EM::VirtualVector::VirtualWriter<ORAMEntry> outputWriter(
+      (size * 2 - 1) * Z, [&](uint64_t i, const ORAMEntry& entry) {});
+  ORAMInit<method, Z>(inputReader, outputWriter);
+}
+
+void oram_init_test(uint64_t size) {
+  uint64_t start, end;
+  size_t BackendSize = 2048 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testOramInitPerf<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+  ocall_measure_time(&start);
+  testOramInitPerf<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
+void load_balancer_test(uint64_t size) {
+  uint64_t start, end;
+  if (EM::Backend::g_DefaultBackend) {
+    delete EM::Backend::g_DefaultBackend;
+  }
+  size_t BackendSize = 1024 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testLoadBalancer<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+
+  ocall_measure_time(&start);
+  testLoadBalancer<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
+}
+
+template <SortMethod method>
+void testDBJoin(uint64_t size) {
+  static constexpr uint64_t payload1Size = 256;
+  static constexpr uint64_t payload2Size = 256;
+  using DBEntry1 = Apps::DBEntry<Bytes<payload1Size>>;
+  using DBEntry2 = Apps::DBEntry<Bytes<payload2Size>>;
+  struct Pair {
+    Bytes<payload1Size> first;
+    Bytes<payload2Size> second;
+  };
+  using DBEntry_ = Apps::DBEntry<Pair>;
+  EM::VirtualVector::VirtualReader<DBEntry1> reader1(size, [&](uint64_t i) {
+    DBEntry1 entry;
+    entry.id = i * 2;
+    return entry;
+  });
+  EM::VirtualVector::VirtualReader<DBEntry2> reader2(size, [&](uint64_t i) {
+    DBEntry2 entry;
+    entry.id = i * 3;
+    return entry;
+  });
+  EM::VirtualVector::VirtualWriter<DBEntry_> writer(
+      size * 2, [&](uint64_t i, const DBEntry_& entry) {});
+  Apps::dbJoin<method>(reader1, reader2, writer);
+}
+
+void dbjoin_test(uint64_t size) {
+  uint64_t start, end;
+  if (EM::Backend::g_DefaultBackend) {
+    delete EM::Backend::g_DefaultBackend;
+  }
+  size_t BackendSize = 4096 * size;
+  EM::Backend::g_DefaultBackend =
+      new EM::Backend::MemServerBackend(BackendSize);
+  printf("size = %ld\n", size);
+  ocall_measure_time(&start);
+  testDBJoin<KWAYBUTTERFLYOSORT>(size);
+  ocall_measure_time(&end);
+  printf("Flex-way Butterfly %f\n", 1e-9 * (end - start));
+
+  ocall_measure_time(&start);
+  testDBJoin<BITONICSORT>(size);
+  ocall_measure_time(&end);
+  printf("Bitonic %f\n", 1e-9 * (end - start));
 }

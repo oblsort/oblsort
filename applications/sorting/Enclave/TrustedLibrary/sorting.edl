@@ -3,6 +3,7 @@ enclave {
     public void ecall_test_sanity(void);
     public void ecall_sort_perf(void);
     public void ecall_pageswap_with_crypt_perf(void);
+    public void ecall_linear_scan_perf(void);
     public void ecall_pageswap_perf(void);
     public void ecall_mergesplit_perf(void);
     public void ecall_mergesplit_compare(void);
