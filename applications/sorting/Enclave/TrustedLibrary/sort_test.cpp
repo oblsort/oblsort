@@ -1,9 +1,9 @@
 #include "../Enclave.h"
 #include "Enclave_t.h"
+#include "apps/db_join.hpp"
 #include "apps/histogram.hpp"
 #include "apps/load_balancer.hpp"
 #include "apps/oram_init.hpp"
-#include "apps/db_join.hpp"
 #include "external_memory/algorithm/ca_bucket_sort.hpp"
 #include "external_memory/algorithm/kway_butterfly_sort.hpp"
 #include "external_memory/algorithm/kway_distri_sort.hpp"
@@ -24,10 +24,32 @@ using namespace EM::Algorithm;
 using namespace EM::NonCachedVector;
 EM::Backend::MemServerBackend* EM::Backend::g_DefaultBackend = nullptr;
 
+void histogram_test(uint64_t size);
+void oram_init_test(uint64_t size);
+void load_balance_test(uint64_t size);
+void dbjoin_test(uint64_t size);
+
 void ecall_sort_perf() {
   // printf("ecall_sort_perf called\n");
   dbg_printf("run in debug mode\n");
-  // using TestVector = EM::ExtVector::Vector<SortElement, 4032, true, 28000>;
+  if constexpr (ALGO >= HISTOGRAM) {
+    // test applications
+    for (double factor = 1; factor <= MAX_SIZE / MIN_SIZE;
+         factor *= STEP_RATIO) {
+      uint64_t size = (uint64_t)(factor * MIN_SIZE);
+      if constexpr (ALGO == HISTOGRAM) {
+        histogram_test(size);
+      } else if constexpr (ALGO == ORAMINIT) {
+        oram_init_test(size);
+      } else if constexpr (ALGO == LOADBALANCE) {
+        load_balance_test(size);
+      } else if constexpr (ALGO == DBJOIN) {
+        dbjoin_test(size);
+      }
+    }
+    return;
+  }
+
   constexpr bool NeedCache = ALGO == ORSHUFFLE || ALGO == BITONICSORT ||
                              ALGO == UNOPTBITONICSORT || ALGO == BITONICSHUFFLE;
   constexpr size_t IdealPageSize = 16384;
@@ -145,7 +167,7 @@ void ecall_linear_scan_perf() {
   uint64_t currTime, currTime2, currTime3;
 
   uint64_t r = 0;
- 
+
   std::vector<SortElement> vExt(size);
   ocall_measure_time(&currTime);
   for (int round = 0; round < 8; ++round) {
@@ -624,18 +646,16 @@ void testDBJoin(uint64_t size) {
     Bytes<payload2Size> second;
   };
   using DBEntry_ = Apps::DBEntry<Pair>;
-  EM::VirtualVector::VirtualReader<DBEntry1> reader1(
-      size, [&](uint64_t i) {
-        DBEntry1 entry;
-        entry.id = i * 2;
-        return entry;
-      });
-  EM::VirtualVector::VirtualReader<DBEntry2> reader2(
-      size, [&](uint64_t i) {
-        DBEntry2 entry;
-        entry.id = i * 3;
-        return entry;
-      });
+  EM::VirtualVector::VirtualReader<DBEntry1> reader1(size, [&](uint64_t i) {
+    DBEntry1 entry;
+    entry.id = i * 2;
+    return entry;
+  });
+  EM::VirtualVector::VirtualReader<DBEntry2> reader2(size, [&](uint64_t i) {
+    DBEntry2 entry;
+    entry.id = i * 3;
+    return entry;
+  });
   EM::VirtualVector::VirtualWriter<DBEntry_> writer(
       size * 2, [&](uint64_t i, const DBEntry_& entry) {});
   Apps::dbJoin<method>(reader1, reader2, writer);
@@ -659,24 +679,4 @@ void dbjoin_test(uint64_t size) {
   testDBJoin<BITONICSORT>(size);
   ocall_measure_time(&end);
   printf("Bitonic %f\n", 1e-9 * (end - start));
-}
-
-void ecall_app_perf() {
-  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
-  //   histogram_test(size);
-  // }
-
-  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
-  //   size = 1UL << GetLogBaseTwo(size);
-  //   oram_init_test(size);
-  // }
-
-  // for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
-  //   load_balancer_test(size);
-  // }
-
-  for (uint64_t size = MIN_SIZE; size <= MAX_SIZE; size *= STEP_RATIO) {
-    size = 1UL << GetLogBaseTwo(size);
-    dbjoin_test(size);
-  }
 }

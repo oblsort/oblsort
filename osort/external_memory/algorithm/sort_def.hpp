@@ -27,7 +27,10 @@ enum SortMethod {
   KWAYBUTTERFLYOSHUFFLE,          // flex-way butterfly o-shuffle
   UNOPTBITONICSORT,               // unoptimized bitonic sort
   EXTMERGESORT,                   // external memory merge sort
-  OTHER                           // other algorithms
+  HISTOGRAM,                      // histogram app
+  DBJOIN,                         // db join app
+  ORAMINIT,                       // oram init app
+  LOADBALANCE                     // load balance app
 };
 
 enum PartitionMethod {
