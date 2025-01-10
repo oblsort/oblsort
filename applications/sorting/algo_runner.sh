@@ -1,19 +1,55 @@
 #!/bin/bash
 source /startsgxenv.sh
 
-SGX_MODE=HW # HW or SIM
+# Use mode HW on machine with SGX hardware
+# Use mode SIM on machine without SGX hardware
+SGX_MODE=HW
 
 # Algorithms:
-ALGOs=(KWAYBUTTERFLYOSORT HISTOGRAM)
-# KWAYBUTTERFLYOSORT KWAYDISTRIBUTIONOSORT KWAYDISTRIBUTIONOSORTSHUFFLED BITONICSORT CABUCKETSORT KWAYBUTTERFLYOSHUFFLE ORSHUFFLE BITONICSHUFFLE CABUCKETSHUFFLE UNOPTBITONICSORT EXTMERGESORT HISTOGRAM DBJOIN ORAMINIT LOADBALANCE
-MIN_ELEMENT_SIZE=128 # element size in bytes
+# Set to one (or more) of the following algorithms
+
+# Sorting Algorithms:
+# KWAYBUTTERFLYOSORT - the flex-way osort (ours)
+    # BITONICSORT - recursive bitonic sort 
+    # UNOPTBITONICSORT - bitonic sort without recursion
+    # CABUCKETSORT - the multi-way bucket sort
+    # EXTMERGESORT - the external merge sort (not-oblivious)
+
+# Shuffling Algorithms:
+    # KWAYBUTTERFLYOSHUFFLE - the flex-way oshuffle (ours)
+    # ORSHUFFLE - OrShuffle
+    # BITONICSHUFFLE - shuffle using bitonic sort
+    # CABUCKETSHUFFLE - multi-way bucket shuffle
+
+# Applications:
+    # HISTOGRAM
+    # DBJOIN
+    # ORAMINIT
+    # LOADBALANCE
+ALGOs=(KWAYBUTTERFLYOSORT)
+
+
+# the size of each data element in bytes
+# the script will run the program with element size from MIN_ELEMENT_SIZE to MAX_ELEMENT_SIZE with a step of 1.5x
+MIN_ELEMENT_SIZE=128
 MAX_ELEMENT_SIZE=128
-MIN_SIZE=8000000    # input size in number of elements
-MAX_SIZE=8000000
-MIN_ENCLAVE_SIZE=128 # enclave size in MB
+
+# the number of input elements
+# the program will run with input size from MIN_SIZE to MAX_SIZE with a step of 1.2x
+MIN_SIZE=10000000    # input size in number of elements
+MAX_SIZE=10000000
+
+# the size of the enclave heap in MB
+# the script will run the program with enclave size from MIN_ENCLAVE_SIZE to MAX_ENCLAVE_SIZE with a step of 2x
+MIN_ENCLAVE_SIZE=128
 MAX_ENCLAVE_SIZE=128
-CORE_ID=5 # the cpu core id to run the program
-DISK_IO=0 # 0: no disk IO, 1: disk IO
+
+# the core id of the cpu to run the program
+CORE_ID=5
+
+# whether swap data to disk when data size exceeds the enclave heap size
+# 0: swap to insecure memory, 1: swap to disk
+DISK_IO=0
 
 
 
@@ -61,4 +97,5 @@ do
 done
 done
 done
+# Reset the Enclave.config.xml to default heap size
 sed -i '/.*<Heap.*/c\  <HeapMaxSize>0x7A00000</HeapMaxSize>' ./Enclave/Enclave.config.xml
