@@ -1,14 +1,14 @@
 #include <gtest/gtest.h>
 
-#include "apps/histogram.hpp"
-#include "apps/oram_init.hpp"
-#include "apps/load_balancer.hpp"
 #include "apps/db_join.hpp"
+#include "apps/histogram.hpp"
+#include "apps/load_balancer.hpp"
+#include "apps/oram_init.hpp"
 #include "testutils.hpp"
 using namespace Apps;
 
 template <SortMethod method>
-void testHistogram(uint64_t size = 10000) {
+void testHistogramCorrectness(uint64_t size = 10000) {
   uint64_t uniqueSize = std::min(100UL, size);
   using Url = Bytes<16>;
   using InputVec = StdVector<Url>;
@@ -50,25 +50,22 @@ void testHistogramPerf(uint64_t size) {
   Apps::histogram<method>(inputReader, outputWriter);
 }
 
-TEST(TestApps, HistogramCorrectness) {
-  testHistogram<KWAYBUTTERFLYOSORT>(10000);
-  testHistogram<BITONICSORT>(10000);
-}
-
-TEST(TestApps, HistogramPerf) {
+void compareHistogramPerf(uint64_t size) {
+  std::cout << "Histogram size: " << size << std::endl;
   auto start = std::chrono::system_clock::now();
-  
-  testHistogramPerf<KWAYBUTTERFLYOSORT>(1UL << 23);
+
+  testHistogramPerf<KWAYBUTTERFLYOSORT>(size);
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<double> diff = end - start;
-  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9)
+            << diff.count() << std::endl;
 
   start = std::chrono::system_clock::now();
-  testHistogramPerf<BITONICSORT>(1UL << 23);
+  testHistogramPerf<BITONICSORT>(size);
   end = std::chrono::system_clock::now();
   diff = end - start;
-  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count() << std::endl;
-  
+  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count()
+            << std::endl;
 }
 
 template <SortMethod method>
@@ -116,28 +113,25 @@ void testOramInitPerf(uint64_t size = 65536) {
   EM::VirtualVector::VirtualWriter<ORAMEntry> outputWriter(
       (size * 2 - 1) * Z, [&](uint64_t i, const ORAMEntry& entry) {});
   ORAMInit<method, Z>(inputReader, outputWriter);
-
 }
 
-TEST(TestApps, OramInitCorrectness) {
-  testOramInit<KWAYBUTTERFLYOSORT>(65536);
-  testOramInit<BITONICSORT>(65536);
-}
-
-TEST(TestApps, OramInitPerf) {
+void compareOramInitPerf(uint64_t size) {
+  std::cout << "ORAMInit size: " << size << std::endl;
   // start timer
   auto start = std::chrono::system_clock::now();
-  
-  testOramInitPerf<KWAYBUTTERFLYOSORT>(1UL << 23);
+
+  testOramInitPerf<KWAYBUTTERFLYOSORT>(size);
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<double> diff = end - start;
-  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9)
+            << diff.count() << std::endl;
 
   start = std::chrono::system_clock::now();
-  testOramInitPerf<BITONICSORT>(1UL << 23);
+  testOramInitPerf<BITONICSORT>(size);
   end = std::chrono::system_clock::now();
   diff = end - start;
-  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count()
+            << std::endl;
 }
 
 template <SortMethod method>
@@ -160,25 +154,22 @@ void testLoadBalancer(uint64_t size) {
   }
 }
 
-TEST(TestApps, LoadBalancer) {
-  testLoadBalancer<KWAYBUTTERFLYOSORT>(1UL << 20);
-  testLoadBalancer<BITONICSORT>(1UL << 20);
-}
-
-TEST(TestApps, LoadBalancerPerf) {
-
+void compareLoadBalancerPerf(uint64_t size) {
+  std::cout << "LoadBalancer size: " << size << std::endl;
   auto start = std::chrono::system_clock::now();
-  
-  testLoadBalancer<KWAYBUTTERFLYOSORT>(1UL << 23);
+
+  testLoadBalancer<KWAYBUTTERFLYOSORT>(size);
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<double> diff = end - start;
-  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9)
+            << diff.count() << std::endl;
 
   start = std::chrono::system_clock::now();
-  testLoadBalancer<BITONICSORT>(1UL << 23);
+  testLoadBalancer<BITONICSORT>(size);
   end = std::chrono::system_clock::now();
   diff = end - start;
-  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count()
+            << std::endl;
 }
 template <SortMethod method>
 void testDBJoin(uint64_t size) {
@@ -191,50 +182,59 @@ void testDBJoin(uint64_t size) {
     Bytes<payload2Size> second;
   };
   using DBEntry_ = DBEntry<Pair>;
-  EM::VirtualVector::VirtualReader<DBEntry1> reader1(
-      size, [&](uint64_t i) {
-        DBEntry1 entry;
-        entry.id = i * 2;
-        return entry;
-      });
-  EM::VirtualVector::VirtualReader<DBEntry2> reader2(
-      size, [&](uint64_t i) {
-        DBEntry2 entry;
-        entry.id = i * 3;
-        return entry;
-      });
+  EM::VirtualVector::VirtualReader<DBEntry1> reader1(size, [&](uint64_t i) {
+    DBEntry1 entry;
+    entry.id = i * 2;
+    return entry;
+  });
+  EM::VirtualVector::VirtualReader<DBEntry2> reader2(size, [&](uint64_t i) {
+    DBEntry2 entry;
+    entry.id = i * 3;
+    return entry;
+  });
   EM::VirtualVector::VirtualWriter<DBEntry_> writer(
       size * 2, [&](uint64_t i, const DBEntry_& entry) {});
   dbJoin<method>(reader1, reader2, writer);
-} 
-
-
-TEST(TestApps, DBJoinPerf) {
-  auto start = std::chrono::system_clock::now();
-  
-  testDBJoin<KWAYBUTTERFLYOSORT>(1UL << 23);
-  auto end = std::chrono::system_clock::now();
-  std::chrono::duration<double> diff = end - start;
-  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9) << diff.count() << std::endl;
-
-  start = std::chrono::system_clock::now();
-  testDBJoin<BITONICSORT>(1UL << 23);
-  end = std::chrono::system_clock::now();
-  diff = end - start;
-  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count() << std::endl;
 }
 
-TEST(TestApps, DBJoinPerfLarge) {
+void compareDBJoinPerf(uint64_t size) {
+  std::cout << "DBJoin size: " << size << std::endl;
   auto start = std::chrono::system_clock::now();
-  
-  testDBJoin<KWAYBUTTERFLYOSORT>(1UL << 26);
+
+  testDBJoin<KWAYBUTTERFLYOSORT>(size);
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<double> diff = end - start;
-  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Flex-way Butterfly Sort time (s): " << std::setw(9)
+            << diff.count() << std::endl;
 
   start = std::chrono::system_clock::now();
-  testDBJoin<BITONICSORT>(1UL << 26);
+  testDBJoin<BITONICSORT>(size);
   end = std::chrono::system_clock::now();
   diff = end - start;
-  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count() << std::endl;
+  std::cout << "Bitonic Sort time (s): " << std::setw(9) << diff.count()
+            << std::endl;
+}
+
+TEST(Apps, HistogramCorrectness) {
+  testHistogramCorrectness<KWAYBUTTERFLYOSORT>();
+}
+
+TEST(Apps, HistogramPerf) {
+  compareHistogramPerf(1UL << 23);
+  compareHistogramPerf(1UL << 26);
+}
+
+TEST(Apps, OramInitPerf) {
+  compareOramInitPerf(1UL << 23);
+  compareOramInitPerf(1UL << 26);
+}
+
+TEST(Apps, LoadBalancerPerf) {
+  compareLoadBalancerPerf(1UL << 23);
+  compareLoadBalancerPerf(1UL << 26);
+}
+
+TEST(Apps, DBJoinPerf) {
+  compareDBJoinPerf(1UL << 23);
+  compareDBJoinPerf(1UL << 26);
 }

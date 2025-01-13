@@ -51,7 +51,8 @@ CORE_ID=5
 # 0: swap to insecure memory, 1: swap to disk
 DISK_IO=0
 
-
+export CC=/usr/bin/gcc
+export CXX=/usr/bin/g++
 
 if [ $DISK_IO = 1 ]
 then

@@ -9,52 +9,45 @@ Install cmake, ninja and intel sgx sdk, or use the cppbuilder docker image.
 docker build -t cppbuilder:latest ./tools/docker/cppbuilder
 ```
 
-## How to enter the docker environment to run unit tests
-```bash
-docker run -it --rm -v $PWD:/builder -u $(id -u) cppbuilder
-```
-
 ## How to enter the docker environment to run algorithms in enclave
 ```bash
 docker run -v /tmp/sortbackend:/ssdmount --privileged -it --rm -v $PWD:/builder cppbuilder
 ```
 
-## How to run the unit tests
-```bash
-rm -rf build
-cmake -B build -G Ninja
-ninja -C build
-ninja -C build test
-```
-
-## How to run the unit tests in release mode
+## How to build the unit tests in release mode
 
 ```bash
-rm -rf build # Needed after the CC/CXX export or after changing the CMAKE_BUILD_TYPE
+rm -rf build # optional
 export CC=/usr/bin/clang
 export CXX=/usr/bin/clang++
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C build
 ```
 
-## Build the sorting example enclave (hardware mode)
+## Examples of running test/benchmark after build for the case data <= EPC (SGX not needed)
+Run the scripts below, or use tools such as C++ TestMate in vscode
 ```bash
-source /startsgxenv.sh
-cd applications/sorting
-make
+###  test runtime of different sorting or shuffling algorithms vs input size
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternal*
+
+###  test runtime of our flex-way oblivious sort vs input size
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternal*KWayButterflySort*
+
+### test runtime of different sorting or shuffling algorithms with input size 100 million
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternal1e8*
+
+###  test runtime of the histogram application
+./build/tests/test_apps --gtest_filter=*HistogramPerf*
+
+### to test the results for different element sizes, change line 14 of file osort/external_memory/algorithm/sort_def.hpp and rebuild (i.e., #define ELEMENT_SIZE 128)
 ```
 
-## Build the sorting example enclave (simulation mode)
-```bash
-source /startsgxenv.sh
-cd applications/sorting
-make SGX_MODE=SIM
-```
-
-## Run a sample script to test runtime of sorting algorithms
+## running test/benchmark in SGX for the case data > EPC
+We provide a script `algo_runner.sh` for benchmarking algorithms in SGX. Modify the script as needed to test different scenes. The script outputs result to a text file by default.
 ```bash
 cd applications/sorting
 ./algo_runner.sh
+# to output the terminal, run ./algo_runner.sh 1
 ```
 
 ## Folder structure high level details
@@ -70,15 +63,4 @@ tools/docker - dockerfiles used for reproducible builds
 common - common c++ utilies, cpu abstractions, cryptography abstractions and tracing code
 external_memory - external memory abstraction and sorting algorithms
 external_memory/server - server abstraction for different external memory scenarios (sgx, file system, ram)
-
-
-### Profiling code
-
-1) Compile with ENABLE_PROFILING
-
-2) For the functions that need profiling, add PROFILE_F(); at as the first line of the function code. Additionally add the function name to trace_events.hxx
-
-3) Use PROFILER_SET(false); to disable profiling, use PROFILER_RESET() to write the profile to the log file (see profiling related functions in profiling_test to confirm).
-
-4) Use any of the tools in "Links to view flamegraph files" above to look at the profiling, adjust uncached IO time based on the results of the benchmarks enclave (benchmark_sgx).
 
