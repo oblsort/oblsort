@@ -49,7 +49,7 @@ To test the results for different element sizes, change line 14 of file osort/ex
 ./build/tests/test_basic_perf --gtest_filter=*TestSortInternal1e8*Shuffle*
 ```
 
-###  test runtime of the applications
+### Table 3: Benchmark Results for Different Applications.
 ```bash
 ./build/tests/test_apps
 ```
