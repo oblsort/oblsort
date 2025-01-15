@@ -1,0 +1,68 @@
+
+## Run Example Testcases for OSort algorithms
+./algo_runner.sh
+or to output directly to terminal
+./algo_runner.sh 1
+
+## Modify algo_runner.sh for benchmarks in the paper
+### Figure 7: Comparing our sorting algorithm with prior works (128 MB EPC). 
+(a) Runtime (s) vs. input size
+```
+ALGOs=(KWAYBUTTERFLYOSORT BITONICSORT CABUCKETSORT EXTMERGESORT)
+MIN_ELEMENT_SIZE=128
+MAX_ELEMENT_SIZE=128
+MIN_SIZE=524288
+MAX_SIZE=371616317
+```
+
+(b) Runtime (s) vs. element size
+```
+ALGOs=(KWAYBUTTERFLYOSORT BITONICSORT CABUCKETSORT EXTMERGESORT)
+MIN_ELEMENT_SIZE=8
+MAX_ELEMENT_SIZE=1024
+MIN_SIZE=100000000
+MAX_SIZE=100000000
+```
+
+### Figure 10: Comparing our shuffling algorithm with prior works (128 MB EPC).
+(a) Runtime (s) vs. input size
+```
+ALGOs=(KWAYBUTTERFLYOSHUFFLE ORSHUFFLE BITONICSHUFFLE CABUCKETSHUFFLE)
+MIN_ELEMENT_SIZE=128
+MAX_ELEMENT_SIZE=128
+MIN_SIZE=524288
+MAX_SIZE=371616317
+```
+
+(b) Runtime (s) vs. element size
+```
+ALGOs=(KWAYBUTTERFLYOSHUFFLE ORSHUFFLE BITONICSHUFFLE CABUCKETSHUFFLE)
+MIN_ELEMENT_SIZE=8
+MAX_ELEMENT_SIZE=1024
+MIN_SIZE=100000000
+MAX_SIZE=100000000
+```
+
+### Table 3: Benchmark Results for Different Applications.
+Input size 2^23 and 128 MB EPC
+```
+ALGOs=(HISTOGRAM DBJOIN ORAMINIT)
+MIN_SIZE=8388608
+MAX_SIZE=8388608
+```
+
+Input size 2^26 and 128 MB EPC
+```
+ALGOs=(HISTOGRAM DBJOIN ORAMINIT)
+MIN_SIZE=67108864
+MAX_SIZE=67108864
+```
+
+### Comparison with bitonic on 200 GB tests
+```
+ALGOs=(KWAYBUTTERFLYOSORT BITONICSORT)
+MIN_ELEMENT_SIZE=200
+MAX_ELEMENT_SIZE=200
+MIN_SIZE=1000000000
+MAX_SIZE=1000000000
+```
