@@ -109,17 +109,10 @@ void _test_sort(size_t size, string funcname, F&& sortFunc,
   }
 }
 
-TEST(TestSort, TestKWayButterflySortPerf) {
+TEST(TestSort, TestKWayButterflySort) {
   // RELEASE_ONLY_TEST();
   for (double N = 1; N < 10000000; N *= 5) {
     test_sort((size_t)N, KWayButterflySort);
-  }
-}
-
-TEST(TestSortInternal, TestKWayButterflySortPerf) {
-  RELEASE_ONLY_TEST();
-  for (double N = 10000; N < 1000000000; N *= 1.2) {
-    test_sort_internal((size_t)N, KWayButterflySortInternal, false, false);
   }
 }
 
@@ -130,14 +123,7 @@ TEST(TestSort, TestKWayButterflyOShufflePerf) {
   }
 }
 
-TEST(TestSortInternal, TestKWayButterflyOShufflePerf) {
-  RELEASE_ONLY_TEST();
-  for (double N = 10000; N < 1000000000; N *= 1.2) {
-    test_sort_internal((size_t)N, KWayButterflyOShuffleInternal, true, false);
-  }
-}
-
-TEST(TestSort, TestKWayDistriSortPerf) {
+TEST(TestSort, TestKWayDistriSort) {
   // RELEASE_ONLY_TEST();
   for (double N = 1000000; N < 10000000; N *= 5) {
     test_sort((size_t)N, KWayDistriSort);
@@ -151,12 +137,12 @@ TEST(TestSort, TestKWayDistriSortShuffledPerf) {
   }
 }
 
-TEST(TestSort, TestCacheObliviouBucketSortPerf) {
+TEST(TestSort, TestCacheObliviouBucketSort) {
   // RELEASE_ONLY_TEST();
   test_sort(200000, CABucketSort);
 }
 
-TEST(TestSort, TestExtMergeSortPerf) {
+TEST(TestSort, TestExtMergeSort) {
   // RELEASE_ONLY_TEST();
   test_sort(10000000, ExtMergeSort);
 }
@@ -166,16 +152,30 @@ TEST(TestSort, TestCacheObliviouBucketPermutationPerf) {
   test_sort(200000, CABucketShuffle, true);
 }
 
-TEST(TestSort, TestBitonicObliviousSortPerf) {
+TEST(TestSort, TestBitonicObliviousSort) {
   // RELEASE_ONLY_TEST();
   for (double N = 1; N < 10000000; N *= 5) {
     test_sort_cache(N, BitonicSort, EM::ExtVector::Vector);
   }
 }
 
-TEST(TestSortInternal, TestRandomizedShellSort) {
+TEST(TestSortInternalIncr, TestKWayButterflySort) {
   RELEASE_ONLY_TEST();
-  for (double N = 67108864 * 2; N < 200000000; N *= 2) {
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
+    test_sort_internal((size_t)N, KWayButterflySortInternal, false, false);
+  }
+}
+
+TEST(TestSortInternalIncr, TestKWayButterflyOShufflePerf) {
+  RELEASE_ONLY_TEST();
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
+    test_sort_internal((size_t)N, KWayButterflyOShuffleInternal, true, false);
+  }
+}
+
+TEST(TestSortInternalIncr, TestRandomizedShellSort) {
+  RELEASE_ONLY_TEST();
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
     test_sort_internal((size_t)N, RandomizedShellSort, false, false);
   }
 }
@@ -185,37 +185,37 @@ void StdSort(Vec& v) {
   std::sort(v.begin(), v.end());
 }
 
-TEST(TestSortInternal, TestStdSort) {
+TEST(TestSortInternalIncr, TestStdSort) {
   RELEASE_ONLY_TEST();
-  for (double N = 10000; N < 1000000000; N *= 1.2) {
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
     test_sort_internal((size_t)N, StdSort, false, false);
   }
 }
 
-TEST(TestSortInternal, TestWaksOnOffSort) {
+TEST(TestSortInternalIncr, TestWaksOnOffShuffle) {
   // RELEASE_ONLY_TEST();
-  for (double N = 10206746; N < 40000000; N *= 1.2) {
+  for (double N = 524288; N <= 2e7; N *= 1.2) {
     test_sort_internal((size_t)N, WaksOnOffShuffle, true, false);
   }
 }
 
-TEST(TestSortInternal, TestBitonicObliviousSortPerf) {
+TEST(TestSortInternalIncr, TestBitonicObliviousSort) {
   RELEASE_ONLY_TEST();
-  for (double N = 10000; N < 1000000000; N *= 1.2) {
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
     test_sort_internal(N, BitonicSort, false, false);
   }
 }
 
-TEST(TestSortInternal, TestCABucketSortPerf) {
+TEST(TestSortInternalIncr, TestCABucketSort) {
   RELEASE_ONLY_TEST();
-  for (double N = 10000; N < 1000000000; N *= 1.2) {
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
     test_sort_internal(N, CABucketSortInternal, false, false);
   }
 }
 
-TEST(TestSortInternal, TestOrShufflePerf) {
+TEST(TestSortInternalIncr, TestOrShufflePerf) {
   RELEASE_ONLY_TEST();
-  for (double N = 10000; N < 1000000000; N *= 1.2) {
+  for (double N = 524288; N <= 371616317; N *= 1.2) {
     test_sort_internal(N, OrShuffle, true, false);
   }
 }
@@ -250,7 +250,7 @@ TEST(TestSortInternal1e8, TestKWayButterflyOShuffle) {
   test_sort_internal((size_t)1e8, KWayButterflyOShuffleInternal, true, false);
 }
 
-TEST(TestSortInternal1e8, TestBitonicObliviousSortPerf) {
+TEST(TestSortInternal1e8, TestBitonicObliviousSort) {
   RELEASE_ONLY_TEST();
   test_sort_internal((size_t)1e8, BitonicSort, false, false);
 }
@@ -266,6 +266,7 @@ TEST(TestSortInternal1e8, TestRandomizedShellSort) {
 }
 
 TEST(TestSortInternal1e8, TestWaksOnOffShuffle) {
+  GTEST_SKIP();  // takes too long
   RELEASE_ONLY_TEST();
   test_sort_internal((size_t)1e8, WaksOnOffShuffle, true, false);
 }
@@ -287,6 +288,7 @@ void testWaksOnOffShuffleOnline(uint64_t N) {
 }
 
 TEST(TestSortInternal1e8, TestWaksOnOffShuffleOnline) {
+  GTEST_SKIP();
   RELEASE_ONLY_TEST();
   testWaksOnOffShuffleOnline(1e8);
 }

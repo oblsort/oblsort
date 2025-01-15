@@ -230,6 +230,7 @@ TEST(Apps, OramInitPerf) {
 }
 
 TEST(Apps, LoadBalancerPerf) {
+  GTEST_SKIP();  // didn't mention in the paper
   compareLoadBalancerPerf(1UL << 23);
   compareLoadBalancerPerf(1UL << 26);
 }

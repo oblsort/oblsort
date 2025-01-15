@@ -25,18 +25,11 @@ SGX_MODE=HW
     # HISTOGRAM
     # DBJOIN
     # ORAMINIT
-ALGOs=(KWAYBUTTERFLYOSORT)
-
-
-# the size of each data element in bytes
-# the script will run the program with element size from MIN_ELEMENT_SIZE to MAX_ELEMENT_SIZE with a step of 1.5x
+ALGOs=(KWAYBUTTERFLYOSORT BITONICSORT CABUCKETSORT EXTMERGESORT)
 MIN_ELEMENT_SIZE=128
 MAX_ELEMENT_SIZE=128
-
-# the number of input elements
-# the program will run with input size from MIN_SIZE to MAX_SIZE with a step of 1.2x
-MIN_SIZE=10000000    # input size in number of elements
-MAX_SIZE=10000000
+MIN_SIZE=524288
+MAX_SIZE=371616317
 
 # the size of the enclave heap in MB
 # the script will run the program with enclave size from MIN_ENCLAVE_SIZE to MAX_ENCLAVE_SIZE with a step of 2x

@@ -24,22 +24,34 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C build
 ```
 
-## Examples of running test/benchmark after build for the case data <= EPC (SGX not needed)
+## Running benchmarks (after build) for the case data <= EPC (SGX not needed)
 Run the scripts below, or use tools such as C++ TestMate in vscode
+
+### Figure 6(a) Comparing our sorting algorithm with prior works when EPC ≥ data.
 ```bash
-###  test runtime of different sorting or shuffling algorithms vs input size
-./build/tests/test_basic_perf --gtest_filter=*TestSortInternal*
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternalIncr*Sort*
+```
 
-###  test runtime of our flex-way oblivious sort vs input size
-./build/tests/test_basic_perf --gtest_filter=*TestSortInternal*KWayButterflySort*
+### Figure 6(b) Comparing our sorting algorithm with prior works when EPC ≥ data for N = 1e8
+To test the results for different element sizes, change line 14 of file osort/external_memory/algorithm/sort_def.hpp and rebuild (i.e., #define ELEMENT_SIZE 128)
+```bash
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternal1e8*Sort*
+```
 
-### test runtime of different sorting or shuffling algorithms with input size 100 million
-./build/tests/test_basic_perf --gtest_filter=*TestSortInternal1e8*
+### Figure 9(a) Comparing our shuffling algorithm with prior works when EPC size ≥ data size.
+```bash
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternalIncr*Shuffle*
+```
 
-###  test runtime of the histogram application
-./build/tests/test_apps --gtest_filter=*HistogramPerf*
+### Figure 9(b) Comparing our shuffling algorithm with prior works when EPC ≥ data for N = 1e8
+To test the results for different element sizes, change line 14 of file osort/external_memory/algorithm/sort_def.hpp and rebuild (i.e., #define ELEMENT_SIZE 128)
+```bash
+./build/tests/test_basic_perf --gtest_filter=*TestSortInternal1e8*Shuffle*
+```
 
-### to test the results for different element sizes, change line 14 of file osort/external_memory/algorithm/sort_def.hpp and rebuild (i.e., #define ELEMENT_SIZE 128)
+###  test runtime of the applications
+```bash
+./build/tests/test_apps
 ```
 
 ## running test/benchmark in SGX for the case data > EPC
