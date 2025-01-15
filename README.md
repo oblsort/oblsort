@@ -65,14 +65,20 @@ cd applications/sorting
 ## Folder structure high level details
 
 osort - C++ osort library code
+
 tests - C++ tests modules
+
 applications - Enclaves example of osort
+
 tools - tools used to generate graphs or test sets
+
 tools/docker - dockerfiles used for reproducible builds
 
 ### OSort folder structure
 
 common - common c++ utilies, cpu abstractions, cryptography abstractions and tracing code
+
 external_memory - external memory abstraction and sorting algorithms
+
 external_memory/server - server abstraction for different external memory scenarios (sgx, file system, ram)
 
