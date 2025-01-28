@@ -3,6 +3,7 @@ An implementation of external memory efficient, cpu instruction and memory acces
 
 # Prerequisites
 Install cmake, ninja and intel sgx sdk, or use the cppbuilder docker image.
+Requires x64 architecture (Apple M series CPU not supported).
 
 ## How to build the builder docker image
 ```bash
@@ -25,7 +26,11 @@ ninja -C build
 ```
 
 ## Running benchmarks (after build) for the case data <= EPC (SGX not needed)
-Run the scripts below, or use tools such as C++ TestMate in vscode
+Run the scripts below, or use tools such as C++ TestMate in vscode.
+
+Warning: 1TB RAM required to run the full benchmarks presented in the paper.
+When benchmarking each algorithm, the input size N increases incrementally, and a C++ exception with description "std::bad_alloc" may be thrown in the test body when the RAM becomes insufficient.
+Consider adjusting the range of N in perf_sort.cpp and run each benchmark individually.
 
 ### Figure 6(a) Comparing our sorting algorithm with prior works when EPC ≥ data.
 ```bash
