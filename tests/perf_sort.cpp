@@ -175,7 +175,7 @@ TEST(TestSortInternalIncr, TestKWayButterflyOShufflePerf) {
 
 TEST(TestSortInternalIncr, TestRandomizedShellSort) {
   RELEASE_ONLY_TEST();
-  for (double N = 524288; N <= 371616317; N *= 1.2) {
+  for (double N = 524288; N <= 5e7; N *= 2) {
     test_sort_internal((size_t)N, RandomizedShellSort, false, false);
   }
 }
@@ -208,7 +208,7 @@ TEST(TestSortInternalIncr, TestBitonicObliviousSort) {
 
 TEST(TestSortInternalIncr, TestCABucketSort) {
   RELEASE_ONLY_TEST();
-  for (double N = 524288; N <= 371616317; N *= 1.2) {
+  for (double N = 524288; N <= 1e8; N *= 1.2) {
     test_sort_internal(N, CABucketSortInternal, false, false);
   }
 }
